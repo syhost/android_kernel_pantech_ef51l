@@ -45,7 +45,6 @@
 #include <linux/regulator/consumer.h>
 #include <linux/slab.h>
 #include <linux/pm_qos.h>
-#include <linux/sysrq.h> //p14291_test
 
 #include <asm/cacheflush.h>
 #include <asm/div64.h>
@@ -6683,9 +6682,6 @@ static int __init msmsdcc_init(void)
 		return ret;
 	}
 #endif
-
-	//mmc_test_flag = 0; //p14291_test
-
 	return platform_driver_register(&msmsdcc_driver);
 }
 
