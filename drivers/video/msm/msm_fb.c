@@ -1922,12 +1922,6 @@ static void bl_workqueue_handler(struct work_struct *work)
 #endif 
 		up(&mfd->sem);
 	}
-#if 0//def TEST_LCD_BL_UPDATE3			
-	else
-	{
-		printk(KERN_ERR "bl_workqueue_handler error bl handler bl_updated %d \n",bl_updated);
-	}
-#endif	
 }
 
 static int msm_fb_pan_display(struct fb_var_screeninfo *var,

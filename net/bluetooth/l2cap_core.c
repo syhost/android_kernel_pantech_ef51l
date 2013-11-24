@@ -3475,11 +3475,8 @@ static int l2cap_parse_conf_req(struct sock *sk, void *data)
 
 	BT_DBG("sk %p", sk);
 
-//P11391 QCT_PATCH  l2cap MTU configuration
-	if (pi->omtu > mtu) {
+	if (pi->omtu > mtu)
 		mtu = pi->omtu;
-	}
-//P11391 QCT_PATCH  l2cap MTU configuration
 
 	while (len >= L2CAP_CONF_OPT_SIZE) {
 		len -= l2cap_get_conf_opt(&req, &type, &olen, &val);
@@ -3582,12 +3579,8 @@ done:
 	if (pi->mode != rfc.mode) {
 		result = L2CAP_CONF_UNACCEPT;
 		rfc.mode = pi->mode;
-
-//P11391 QCT_PATCH  l2cap MTU configuration
-		if (mtu > L2CAP_DEFAULT_MTU) {
+		if (mtu > L2CAP_DEFAULT_MTU)
 			pi->omtu = mtu;
-		}
-//P11391 QCT_PATCH  l2cap MTU configuration
 
 		if (pi->num_conf_rsp == 1)
 			return -ECONNREFUSED;
