@@ -414,15 +414,7 @@ static int hw_ep_flush(int num, int dir)
 {
 	ktime_t start, diff;
 	int n = hw_ep_bit(num, dir);
-	//p16102 QC patch
 
-	struct ci13xxx_ep *mEp = &_udc->ci13xxx_ep[n];
-
-    //   if (list_empty(&mEp->qh.queue))
-    if (_udc->skip_flush || list_empty(&mEp->qh.queue)) // p16102 QC patch
-         return 0;
-	   
-	//p16102 QC patch
 	start = ktime_get();
 	do {
 		/* flush any pending transfer */
@@ -436,8 +428,6 @@ static int hw_ep_flush(int num, int dir)
 					__func__, num,
 					dir ? "IN" : "OUT");
 				debug_ept_flush_info(num, dir);
-				
-				 _udc->skip_flush = true; // p16102 QC patch
 				return 0;
 			}
 		}
@@ -455,9 +445,7 @@ static int hw_ep_flush(int num, int dir)
  */
 static int hw_ep_disable(int num, int dir)
 {
-
-	//hw_ep_flush(num, dir); p16102 QC patch
-	
+	hw_ep_flush(num, dir);
 	hw_cwrite(CAP_ENDPTCTRL + num * sizeof(u32),
 		  dir ? ENDPTCTRL_TXE : ENDPTCTRL_RXE, 0);
 	return 0;
@@ -2213,7 +2201,7 @@ __acquires(udc->lock)
 	retval = _gadget_stop_activity(&udc->gadget);
 	if (retval)
 		goto done;
-	 _udc->skip_flush = false; // p16102 QC patch
+
 	retval = hw_usb_reset();
 	if (retval)
 		goto done;
