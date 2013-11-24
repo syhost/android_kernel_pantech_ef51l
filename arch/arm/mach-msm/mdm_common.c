@@ -163,14 +163,6 @@ static void mdm_restart_reason_fn(struct work_struct *work)
 					ntries + 1,	SFR_MAX_RETRIES);
 		} else {
 			pr_err("mdm restart reason: %s\n", sfr_buf);
-
-#ifdef CONFIG_PANTECH_ERR_CRASH_LOGGING
-// MDM SSR not support
-#if (0)
-            sky_reset_reason = SYS_RESET_REASON_UNKNOWN;
-#endif
-#endif
-
 			break;
 		}
 	} while (++ntries < SFR_MAX_RETRIES);
@@ -360,11 +352,6 @@ static void mdm_disable_irqs(void)
 	disable_irq_nosync(mdm_drv->mdm_status_irq);
 }
 
-#ifndef CONFIG_PANTECH_USER_BUILD
-//12/11/08 p10919 : mdm remotefs hello fail fix and debug code add by case 01013984
-void test_hsic_phy(void); 
-#endif
-
 static irqreturn_t mdm_errfatal(int irq, void *dev_id)
 {
 	pr_debug("%s: mdm got errfatal interrupt\n", __func__);
@@ -372,10 +359,6 @@ static irqreturn_t mdm_errfatal(int irq, void *dev_id)
 		(gpio_get_value(mdm_drv->mdm2ap_status_gpio) == 1)) {
 		pr_info("%s: Reseting the mdm due to an errfatal\n", __func__);
 		mdm_drv->mdm_ready = 0;
-#ifndef CONFIG_PANTECH_USER_BUILD
-//12/11/08 p10919 : mdm remotefs hello fail fix and debug code add by case 01013984
-		test_hsic_phy();
-#endif
 		subsystem_restart_dev(mdm_subsys_dev);
 	}
 	return IRQ_HANDLED;
@@ -533,7 +516,7 @@ static int mdm_subsys_ramdumps(int want_dumps,
 			mdm_drv->ops->power_down_mdm_cb(mdm_drv);
 			/* Update gpio configuration to "booting" config. */
 			mdm_update_gpio_configs(GPIO_UPDATE_BOOTING_CONFIG);
-	}
+		}
 	}
 	return mdm_drv->mdm_ram_dump_status;
 }

@@ -27,14 +27,6 @@ config MMC_PERF_PROFILING
 	  If you say Y here, support will be added for collecting
 	  performance numbers at the MMC Queue and Host layers.
 
-#<20121207> p14986 sim,jungsun. to make debug recovery image for hynix eMMC test.
-config MMC_DEBUG_FOR_HYNIX
-	bool "MMC PANTECH MMC Debuging"
-	depends on MMC != n
-	default n
-	help
-		If you say Y here, support will be added for pantech debuging.
-
 if MMC
 
 source "drivers/mmc/core/Kconfig"

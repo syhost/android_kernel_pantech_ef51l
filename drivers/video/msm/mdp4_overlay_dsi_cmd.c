@@ -272,8 +272,6 @@ int mdp4_dsi_cmd_pipe_commit(int cndx, int wait)
 	pipe = vctrl->base_pipe;
 	mixer = pipe->mixer_num;
 
-	mdp_update_pm(vctrl->mfd, vctrl->vsync_time);
-
 	if (vp->update_cnt == 0) {
 		mutex_unlock(&vctrl->update_lock);
 		return cnt;
@@ -677,14 +675,9 @@ ssize_t mdp4_dsi_cmd_show_event(struct device *dev,
 	spin_unlock_irqrestore(&vctrl->spin_lock, flags);
 
 	ret = wait_for_completion_interruptible_timeout(&vctrl->vsync_comp,
-		msecs_to_jiffies(VSYNC_PERIOD * 4));
-	if (ret <= 0) {
-		vctrl->wait_vsync_cnt = 0;
-		vsync_tick = ktime_to_ns(ktime_get());
-		ret = snprintf(buf, PAGE_SIZE, "VSYNC=%llu", vsync_tick);
-		buf[strlen(buf) + 1] = '\0';
-		return ret;
-	}
+		msecs_to_jiffies(VSYNC_PERIOD * 2));
+	if (ret <= 0)
+		return -EBUSY;
 
 	spin_lock_irqsave(&vctrl->spin_lock, flags);
 	vsync_tick = ktime_to_ns(vctrl->vsync_time);

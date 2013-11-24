@@ -36,36 +36,6 @@
 #define NON_SECURE_IMEI_START    (SECTOR_SIZE*394)
 #endif
 
-#if (0) //	F_PANTECH_SECBOOT
-//#include "../../../../../../../boot_images/core/securemsm/secboot/shared/inc/secboot_types.h"
-typedef struct
-{ 
-  #define SECBOOT_FUSE_FLAG_MAGIC_NUM     0xAAFFFF
-  #define SECBOOT_FUSE_FLAG_UNSET         0xF0F0F0
-  #define SECBOOT_FUSE_FLAG_SET           0xF1F1F1
-  #define SECBOOT_FUSE_NOT_BLOWN          0xF2F2F2
-  #define SECBOOT_FUSE_BLOWN              0xF3F3F3  
-
-  unsigned int secboot_magic_num;
-
-  unsigned int auth_en;
-  unsigned int shk_blow;
-  unsigned int shk_rw_dis;
-  unsigned int jtag_dis;
-} secboot_fuse_flag;
-/*
-typedef struct
-{ 
-  #define SECBOOT_SECBOOT_CHECK_MAGIC_NUM     0xCCBBBB
-  #define SECBOOT_AUTH_IMG_NUM                16
-
-  uint32 secboot_magic_num;
-  uint32 auth_img_result[SECBOOT_AUTH_IMG_NUM];
-} secboot_auth_img_result;
-*/
-#endif
-
-
 
 enum {
   DLOADINFO_NONE_STATE = 0,
@@ -337,16 +307,7 @@ static void ghsic_data_write_tohost(struct work_struct *w)
 		req->context = skb;
 		req->buf = skb->data;
 		req->length = skb->len;
-#if 0
-		 if( dloadinfo_state != DLOADINFO_NONE_STATE )
-		{
-//		 char temp_buf[SECTOR_SIZE]={0,};
-		
-				printk(KERN_ERR "%s: run cmd send_dload_packet download state %d", __func__, dloadinfo_state);
-				req->buf = temp_buf;
-				req->length = fill_writereq(&dloadinfo_state, req);			
-		}
-#endif
+
 		port->n_tx_req_queued++;
 		if (port->n_tx_req_queued == ghsic_data_tx_intr_thld) {
 			req->no_interrupt = 0;
@@ -532,10 +493,6 @@ static void load_phoneinfo_with_imei(struct work_struct *work_s)
   }
   set_fs(oldfs);
 
-  #if 0 //test
-    printk(KERN_ERR "%s : imei <%x> %x %x %x %x , %x %x %x %x, %x %x %x %x, %x %x %x \n",__func__,0,read_buf[0],read_buf[1],read_buf[2],read_buf[3],read_buf[4],read_buf[5],read_buf[6],read_buf[7],read_buf[8],read_buf[9],read_buf[10],read_buf[11],read_buf[12],read_buf[13],read_buf[14]);
-  #endif
-
   printk(KERN_INFO "%s: read IMEI OK\n", __func__);
 
   imei_backup_info_buf = (imei_backup_info_type *)&read_buf[0];
@@ -544,75 +501,6 @@ static void load_phoneinfo_with_imei(struct work_struct *work_s)
     memcpy(pantech_phoneinfo_buff_ptr->Imei, read_buf+4, NV_UE_IMEI_SIZE);
   }
 
-#if (0) 	//F_PANTECH_SECBOOT
-  {
-    secboot_fuse_flag *secboot_flag_ptr = NULL;
-    const char str_secure[] = "$3(UR3"; // secure target
-    const char str_non_secure[] = "3ru(3$"; // non-secure target
-
-    rawdata_filp->f_pos = PANTECH_SECBOOT_FLAG_START;
-    memset(read_buf, 0, SECTOR_SIZE);
-    printk(KERN_ERR "%s: PANTECH_SECBOOT_FLAG pos=%x\n", __func__, PANTECH_SECBOOT_FLAG_START);
-
-    if (((rawdata_filp->f_flags & O_ACCMODE) & O_RDONLY) != 0)
-    {
-      printk(KERN_ERR "%s: PANTECH_SECBOOT_FLAG permission denied!\n", __func__);
-      printk(KERN_ERR "%s: secure target (for safety)\n", __func__);
-      strcpy(pantech_phoneinfo_buff_ptr->secure_magic_, str_secure);
-      return;
-    }
-
-    oldfs = get_fs();
-    set_fs(KERNEL_DS);
-
-    rc = rawdata_filp->f_op->read(rawdata_filp, read_buf, SECTOR_SIZE, &rawdata_filp->f_pos);
-    if (rc < 0) {
-      set_fs(oldfs);
-      printk(KERN_ERR "%s: PANTECH_SECBOOT_FLAG read failed! (%d)\n", __func__, rc);
-      printk(KERN_ERR "%s: secure target (for safety)\n", __func__);
-      strcpy(pantech_phoneinfo_buff_ptr->secure_magic_, str_secure);
-      filp_close(rawdata_filp, NULL);
-      return;
-    }
-
-    set_fs(oldfs);
-
-    printk(KERN_INFO "%s: PANTECH_SECBOOT_FLAG read done\n", __func__);
-
-    secboot_flag_ptr = (secboot_fuse_flag *)&read_buf[0];
-
-    if (secboot_flag_ptr->secboot_magic_num == SECBOOT_FUSE_FLAG_MAGIC_NUM)
-    {
-      printk(KERN_ERR "%s: PANTECH_SECBOOT_FLAG valid magic\n", __func__);
-
-      if (secboot_flag_ptr->auth_en == SECBOOT_FUSE_NOT_BLOWN)
-      {
-        printk(KERN_ERR "%s: PANTECH_SECBOOT_FLAG non-secure target\n", __func__);
-        strcpy(pantech_phoneinfo_buff_ptr->secure_magic_, str_non_secure);
-      }
-      else if (secboot_flag_ptr->auth_en == SECBOOT_FUSE_BLOWN)
-      {
-        printk(KERN_ERR "%s: PANTECH_SECBOOT_FLAG secure target\n", __func__);
-        strcpy(pantech_phoneinfo_buff_ptr->secure_magic_, str_secure);
-      }
-      else
-      {
-        printk(KERN_ERR "%s: PANTECH_SECBOOT_FLAG secure target (for safety)\n", __func__);
-        strcpy(pantech_phoneinfo_buff_ptr->secure_magic_, str_secure);
-      }
-    }
-    else
-    {
-      printk(KERN_ERR "%s: PANTECH_SECBOOT_FLAG invalid magic!\n", __func__);
-      printk(KERN_ERR "%s: secure target (for safety)\n", __func__);
-      strcpy(pantech_phoneinfo_buff_ptr->secure_magic_, str_secure);
-    }
-  }
-#endif
-
-
-
-  
   filp_close(rawdata_filp, NULL);
 
   if(check_phoneinfo() != 1 && read_count < 5)
@@ -657,13 +545,6 @@ unsigned fill_writereq(int *dloadinfo_state, struct usb_request *writereq)
       printk(KERN_ERR "%s: case DLOADINFO_PHONE_INFO_STATE", __func__);
       memset( writereq->buf, 0x0, 16 + sizeof(phoneinfo_type) );
       len = writereq->length = fill_phoneinfo((char *)writereq->buf); 
-
-      #if 0 //test
-        for( i=3; i < len/16; i++ )
-        {
-          printk(KERN_ERR "%s : phoneinfo <%x> %x %x %x %x, %x %x %x %x, %x %x %x %x, %x %x %x %x\n",__func__,i*16,tx_buf[i*16],tx_buf[i*16+1],tx_buf[i*16+2],tx_buf[i*16+3],tx_buf[i*16+4],tx_buf[i*16+5],tx_buf[i*16+6],tx_buf[i*16+7],tx_buf[i*16+8],tx_buf[i*16+9],tx_buf[i*16+10],tx_buf[i*16+11],tx_buf[i*16+12],tx_buf[i*16+13],tx_buf[i*16+14],tx_buf[i*16+15]);
-        }
-      #endif 
 
       printk(KERN_ERR "%s: packet make DLOADINFO_PHONE_INFO_STATE", __func__);
     }

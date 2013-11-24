@@ -1013,20 +1013,12 @@ static int set_dev_class(struct sock *sk, u16 index, unsigned char *data,
 	hdev->major_class |= cp->major & MGMT_MAJOR_CLASS_MASK;
 	hdev->minor_class = cp->minor;
 
-	// QCT_getCOD()_patch ++++
-	//if (test_bit(HCI_UP, &hdev->flags))
 	if (test_bit(HCI_UP, &hdev->flags)) {
-	// QCT_getCOD()_patch ----
 		err = update_class(hdev);
-	// QCT_getCOD()_patch ++++
-	//else
-	//	err = 0;
-
-	//if (err == 0)
 		if (err == 0)
-			err = cmd_complete(sk, index, MGMT_OP_SET_DEV_CLASS, hdev->dev_class, sizeof(u8)*3);
+			err = cmd_complete(sk, index,
+		MGMT_OP_SET_DEV_CLASS, hdev->dev_class, sizeof(u8)*3);
 	} else
-	// QCT_getCOD()_patch ----
 		err = cmd_complete(sk, index, MGMT_OP_SET_DEV_CLASS, NULL, 0);
 
 	hci_dev_unlock_bh(hdev);

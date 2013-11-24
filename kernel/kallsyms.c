@@ -319,11 +319,7 @@ int lookup_symbol_name(unsigned long addr, char *symname)
 		return 0;
 	}
 	/* See if it's in a module. */
-#if defined(CONFIG_QC_ABNORMAL_DEBUG_CODE) && !defined(CONFIG_PANTECH_USER_BUILD)
-    return -ERANGE;
-#else
 	return lookup_module_symbol_name(addr, symname);
-#endif
 }
 
 int lookup_symbol_attrs(unsigned long addr, unsigned long *size,

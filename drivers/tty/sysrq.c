@@ -49,8 +49,6 @@
 static int __read_mostly sysrq_enabled = SYSRQ_DEFAULT_ENABLE;
 static bool __read_mostly sysrq_always_enabled;
 
-int mmc_test_flag = 0; //p14291_test
-
 static bool sysrq_on(void)
 {
 	return sysrq_enabled || sysrq_always_enabled;
@@ -139,19 +137,6 @@ static struct sysrq_key_op sysrq_crash_op = {
 	.action_msg	= "Trigger a crash",
 	.enable_mask	= SYSRQ_ENABLE_DUMP,
 };
-
-//p14291_test
-static void sysrq_handle_emmc_debug(int key)
-{
-	mmc_test_flag = 0x12127878;
-}
-static struct sysrq_key_op sysrq_mmc_debug_op = {
-	.handler	= sysrq_handle_emmc_debug,
-	.help_msg	= "emmc_debug",
-	.action_msg	= "Trigger a emmc debug",
-	.enable_mask	= SYSRQ_ENABLE_DUMP,
-};
-
 
 static void sysrq_handle_reboot(int key)
 {
@@ -439,8 +424,7 @@ static struct sysrq_key_op *sysrq_key_table[36] = {
 	&sysrq_term_op,			/* e */
 	&sysrq_moom_op,			/* f */
 	/* g: May be registered for the kernel debugger */
-	//NULL,				/* g */
-	&sysrq_mmc_debug_op, //p14291_test
+	NULL,				/* g */
 	NULL,				/* h - reserved for help */
 	&sysrq_kill_op,			/* i */
 #ifdef CONFIG_BLOCK

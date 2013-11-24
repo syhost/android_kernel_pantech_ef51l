@@ -976,12 +976,6 @@ static irqreturn_t ehci_irq (struct usb_hcd *hcd)
 	/* PCI errors [4.15.2.4] */
 	if (unlikely ((status & STS_FATAL) != 0)) {
 		ehci_err(ehci, "fatal error\n");
-// P12125 kernel panic debug code->
-#ifndef CONFIG_PANTECH_USER_BUILD
-		if (hcd->driver->dump_qh_qtd)
-			hcd->driver->dump_qh_qtd(hcd);
-#endif
-// P12125 kernel panic debug code-<
 		if (hcd->driver->dump_regs)
 			hcd->driver->dump_regs(hcd);
 		panic("System error\n");

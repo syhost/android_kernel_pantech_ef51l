@@ -1100,11 +1100,6 @@ static void __init apq8064_calculate_reserve_sizes(void)
 	reserve_mdp_memory();
 	reserve_rtb_memory();
 	reserve_cache_dump_memory();
-#if defined(CONFIG_QC_ABNORMAL_DEBUG_CODE) && !defined(CONFIG_PANTECH_USER_BUILD)
-	//#define ALRANLOGSIZE (1 << CONFIG_LOG_BUF_SHIFT)
-	#define ALRANLOGSIZE (1048576)
-	apq8064_reserve_table[MEMTYPE_EBI1].size += (ALRANLOGSIZE + PAGE_SIZE);
-#endif
 }
 
 static struct reserve_info apq8064_reserve_info __initdata = {
@@ -4228,44 +4223,10 @@ static void __init apq8064_allocate_memory_regions(void)
 	apq8064_allocate_fb_region();
 }
 
-#if defined(CONFIG_QC_ABNORMAL_DEBUG_CODE) && !defined(CONFIG_PANTECH_USER_BUILD)
-extern void enable_uncache_log_buf(char *, int);//ALRAN
-extern void enable_uncache_sched_log(char *, int);//ALRAN
-extern void enable_uncache_irq_log(char *, int);//ALRAN
-#endif
-
 static void __init apq8064_cdp_init(void)
 {
 	if (meminfo_init(SYS_MEMORY, SZ_256M) < 0)
 		pr_err("meminfo_init() failed!\n");
-
-#if defined(CONFIG_QC_ABNORMAL_DEBUG_CODE) && !defined(CONFIG_PANTECH_USER_BUILD)
-	{
-	unsigned long lphy;
-	char * temp;
-	
-	//lphy = allocate_contiguous_ebi_nomap(ALRANLOGSIZE, PAGE_SIZE);
-    //temp = (char *)__arm_ioremap(lphy, ALRANLOGSIZE, 11); //same as MT_MEMORY_NONCACHED
-
-#if defined(CONFIG_PANTECH_DEBUG)
-	lphy=0x88b00000;
-#else
-    lphy=0x88c00000;
-#endif
-    
-	temp = (char *)ioremap_nocache(lphy, ALRANLOGSIZE);
-
-	memset((void*)temp, 0, ALRANLOGSIZE);
-	enable_uncache_log_buf(temp, ALRANLOGSIZE/2);
-	pr_err("ALRAN:   log_buf mapped at 0x%08x/size %dKB\n", (unsigned int)temp, ALRANLOGSIZE/2/1024);
-	temp = temp + (ALRANLOGSIZE/2);
-	enable_uncache_sched_log(temp, ALRANLOGSIZE/4);
-	pr_err("ALRAN: sched_buf mapped at 0x%08x/size %dKB\n", (unsigned int)temp, ALRANLOGSIZE/4/1024);
-	temp = temp + (ALRANLOGSIZE/4);
-	enable_uncache_irq_log(temp, ALRANLOGSIZE/4);
-	pr_err("ALRAN:   irq_buf mapped at 0x%08x/size %dKB\n", (unsigned int)temp, ALRANLOGSIZE/4/1024);
-	}
-#endif
 
 	apq8064_common_init();
 	if (machine_is_mpq8064_cdp() || machine_is_mpq8064_hrd() ||

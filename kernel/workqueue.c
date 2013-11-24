@@ -42,12 +42,6 @@
 #include <linux/lockdep.h>
 #include <linux/idr.h>
 
-#if defined(CONFIG_PANTECH_DEBUG) && !defined(CONFIG_PANTECH_USER_BUILD)
-#ifdef CONFIG_PANTECH_DEBUG_SCHED_LOG  //p14291_121102
-#include <mach/pantech_apanic.h> 
-#endif
-#endif
-
 #include "workqueue_sched.h"
 
 enum {
@@ -1783,9 +1777,6 @@ static void cwq_dec_nr_in_flight(struct cpu_workqueue_struct *cwq, int color,
 		complete(&cwq->wq->first_flusher->done);
 }
 
-#if defined(CONFIG_QC_ABNORMAL_DEBUG_CODE) && !defined(CONFIG_PANTECH_USER_BUILD)
-extern void printk_u16s(int, char*); //ALRAN
-#endif
 /**
  * process_one_work - process single work
  * @worker: self
@@ -1872,27 +1863,7 @@ __acquires(&gcwq->lock)
 	lock_map_acquire_read(&cwq->wq->lockdep_map);
 	lock_map_acquire(&lockdep_map);
 	trace_workqueue_execute_start(work);
-
-#if defined(CONFIG_PANTECH_DEBUG) && !defined(CONFIG_PANTECH_USER_BUILD)
-#ifdef CONFIG_PANTECH_DEBUG_SCHED_LOG  //p14291_121102
-	pantechdbg_sched_msg("@%pS", f);
-#endif
-#endif
-
-#if defined(CONFIG_QC_ABNORMAL_DEBUG_CODE) && !defined(CONFIG_PANTECH_USER_BUILD)
-	if (1) { //ALRAN
-		char symname[KSYM_NAME_LEN];
-		lookup_symbol_name((unsigned int)f, symname);
-		printk_u16s(1000 + (gcwq->cpu) * 100 + worker->id, symname);
-	}
-#endif
-
 	f(work);
-
-#if defined(CONFIG_QC_ABNORMAL_DEBUG_CODE) && !defined(CONFIG_PANTECH_USER_BUILD)
-	printk_u16s(2000 + (gcwq->cpu) * 100 + worker->id, "work end");
-#endif
-
 	/*
 	 * While we must be careful to not use "work" after this, the trace
 	 * point will only record its address.

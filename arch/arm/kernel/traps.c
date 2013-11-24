@@ -35,12 +35,6 @@
 #include <asm/tls.h>
 #include <asm/system_misc.h>
 
-#if defined(CONFIG_PANTECH_DEBUG) && !defined(CONFIG_PANTECH_USER_BUILD)
-#if defined(CONFIG_PANTECH_DEBUG_SCHED_LOG) //p14291_121102
-#include <mach/pantech_apanic.h>
-#endif
-#endif
-
 #include "signal.h"
 #ifdef CONFIG_PANTECH_ERR_CRASH_LOGGING
 #include <asm/system.h>
@@ -291,13 +285,6 @@ void die(const char *str, struct pt_regs *regs, int err)
 	oops_enter();
 
 	raw_spin_lock_irq(&die_lock);
-
-#if defined(CONFIG_PANTECH_DEBUG) && !defined(CONFIG_PANTECH_USER_BUILD)
-#if defined(CONFIG_PANTECH_DEBUG_SCHED_LOG)  //p14291_121102
-	pantechdbg_sched_msg("!!die!!");
-#endif
-#endif
-
 	console_verbose();
 	bust_spinlocks(1);
 	if (!user_mode(regs))

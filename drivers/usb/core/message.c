@@ -35,12 +35,6 @@ static void usb_api_blocking_completion(struct urb *urb)
 }
 
 
-#ifndef CONFIG_PANTECH_USER_BUILD
-//12/11/08 p10919 : mdm remotefs hello fail fix and debug code add by case 01013984
-void test_hsic_phy(void); 
-#endif
-
-
 /*
  * Starts urb and waits for completion or timeout. Note that this call
  * is NOT interruptible. Many device driver i/o requests should be
@@ -65,23 +59,13 @@ static int usb_start_wait_urb(struct urb *urb, int timeout, int *actual_length)
 		usb_kill_urb(urb);
 		retval = (ctx.status == -ENOENT ? -ETIMEDOUT : ctx.status);
 
-#ifdef CONFIG_PANTECH_USER_BUILD
 		dev_dbg(&urb->dev->dev,
-#else
-//12/11/08 p10919 : mdm remotefs hello fail fix and debug code add by case 01013984
-		dev_printk(KERN_INFO,&urb->dev->dev, 
-#endif
 			"%s timed out on ep%d%s len=%u/%u\n",
 			current->comm,
 			usb_endpoint_num(&urb->ep->desc),
 			usb_urb_dir_in(urb) ? "in" : "out",
 			urb->actual_length,
 			urb->transfer_buffer_length);
-
-#ifndef CONFIG_PANTECH_USER_BUILD
-//12/11/08 p10919 : mdm remotefs hello fail fix and debug code add by case 01013984
-		test_hsic_phy();
-#endif
 	} else
 		retval = ctx.status;
 out:

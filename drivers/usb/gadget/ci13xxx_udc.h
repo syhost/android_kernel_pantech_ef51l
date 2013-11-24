@@ -107,10 +107,6 @@ struct ci13xxx_ep {
 	spinlock_t                            *lock;
 	struct device                         *device;
 	struct dma_pool                       *td_pool;
-// P12125, Daytona FABRIC Hang Issue [CR474557] --->>>
-	struct ci13xxx_td                     *last_zptr;
-	dma_addr_t                            last_zdma;
-// P12125, Daytona FABRIC Hang Issue [CR474557] ---<<<
 	unsigned long dTD_update_fail_count;
 	unsigned long			      prime_fail_count;
 	int				      prime_timer_count;
@@ -145,9 +141,6 @@ struct ci13xxx {
 	struct dma_pool           *qh_pool;   /* DMA pool for queue heads */
 	struct dma_pool           *td_pool;   /* DMA pool for transfer descs */
 	struct usb_request        *status;    /* ep0 status request */
-// P12125, Daytona FABRIC Hang Issue [CR474557] --->>>
-	void                      *status_buf;/* GET_STATUS buffer */
-// P12125, Daytona FABRIC Hang Issue [CR474557] ---<<<
 
 	struct usb_gadget          gadget;     /* USB slave device */
 	struct ci13xxx_ep          ci13xxx_ep[ENDPT_MAX]; /* extended endpts */
@@ -167,11 +160,6 @@ struct ci13xxx {
 	int                        softconnect; /* is pull-up enable allowed */
 	unsigned long dTD_update_fail_count;
 	struct usb_phy            *transceiver; /* Transceiver struct */
-
-	bool                      skip_flush; /* skip flushing remaining EP
-                                               upon flush timeout for the
-                                               first EP. p16102 QC patch */
-	
 };
 
 struct ci13xxx_platform_data {

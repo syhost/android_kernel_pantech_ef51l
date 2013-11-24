@@ -22,12 +22,6 @@
 
 #include <mach/scm.h>
 
-#if defined(CONFIG_PANTECH_DEBUG) && !defined(CONFIG_PANTECH_USER_BUILD)
-#ifdef CONFIG_PANTECH_DEBUG_SCHED_LOG  //p14291_121113_add_scmlog
-#include <mach/pantech_apanic.h>
-#endif
-#endif
-
 #define SCM_ENOMEM		-5
 #define SCM_EOPNOTSUPP		-4
 #define SCM_EINVAL_ADDR		-3
@@ -167,9 +161,6 @@ static int scm_remap_error(int err)
 	return -EINVAL;
 }
 
-#if defined(CONFIG_QC_ABNORMAL_DEBUG_CODE) && !defined(CONFIG_PANTECH_USER_BUILD)
-extern void smc_log(int code, unsigned r0, unsigned r1, unsigned r2, unsigned r3, unsigned r4);
-#endif
 static u32 smc(u32 cmd_addr)
 {
 	int context_id;
@@ -254,15 +245,6 @@ int scm_call(u32 svc_id, u32 cmd_id, const void *cmd_buf, size_t cmd_len,
 	if (cmd_buf)
 		memcpy(scm_get_command_buffer(cmd), cmd_buf, cmd_len);
 
-#if defined(CONFIG_PANTECH_DEBUG) && !defined(CONFIG_PANTECH_USER_BUILD)
-#ifdef CONFIG_PANTECH_DEBUG_SCHED_LOG  //p14291_121113_add_scmlog
-	pantechdbg_sched_msg("^^SCM CALL [%d], [%d]",svc_id, cmd_id);
-#endif
-#endif
-    
-#if defined(CONFIG_QC_ABNORMAL_DEBUG_CODE) && !defined(CONFIG_PANTECH_USER_BUILD)
-	smc_log(4000, svc_id, cmd_id, 0, 0, 0);//ALRAN
-#endif
 	mutex_lock(&scm_lock);
 	ret = __scm_call(cmd);
 	mutex_unlock(&scm_lock);

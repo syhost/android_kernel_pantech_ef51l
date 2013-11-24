@@ -4456,10 +4456,7 @@ static int tabla_hw_params(struct snd_pcm_substream *substream,
 
 static struct snd_soc_dai_ops tabla_dai_ops = {
 	.startup = tabla_startup,
-/* 20130320 Jimmy, enable below block (153346 Turn off slimbus clocks when no ports are active) */	
-#if 1 // jmlee SR Case No 00926132 Watch dog Reset by slimbus disable error... Patch 
 	.shutdown = tabla_shutdown,
-#endif
 	.hw_params = tabla_hw_params,
 	.set_sysclk = tabla_set_dai_sysclk,
 	.set_fmt = tabla_set_dai_fmt,
@@ -5100,83 +5097,15 @@ static const struct snd_soc_dapm_widget tabla_dapm_widgets[] = {
 		SND_SOC_DAPM_POST_PMU | SND_SOC_DAPM_POST_PMD),
 
 	SND_SOC_DAPM_MUX("SLIM TX1 MUX", SND_SOC_NOPM, 0, 0, &sb_tx1_mux),
-#if 0	// before 1031
-	// SD epos check FC miss //SND_SOC_DAPM_AIF_OUT_E("SLIM TX1", "AIF2 Capture", 0, SND_SOC_NOPM, 0,
-	SND_SOC_DAPM_AIF_OUT_E("SLIM TX1", "AIF1 Capture", 0, SND_SOC_NOPM, 0,
-				0, tabla_codec_enable_slimtx,
-				SND_SOC_DAPM_POST_PMU | SND_SOC_DAPM_POST_PMD),
-#endif
 	SND_SOC_DAPM_MUX("SLIM TX2 MUX", SND_SOC_NOPM, 0, 0, &sb_tx2_mux),
-#if 0	// before 1031
-	SND_SOC_DAPM_AIF_OUT_E("SLIM TX2", "AIF2 Capture", 0, SND_SOC_NOPM, 0,
-				0, tabla_codec_enable_slimtx,
-				SND_SOC_DAPM_POST_PMU | SND_SOC_DAPM_POST_PMD),
-#endif
 	SND_SOC_DAPM_MUX("SLIM TX3 MUX", SND_SOC_NOPM, 0, 0, &sb_tx3_mux),
-#if 0	// before 1031
-	SND_SOC_DAPM_AIF_OUT_E("SLIM TX3", "AIF3 Capture", 0, SND_SOC_NOPM, 0,
-				0, tabla_codec_enable_slimtx,
-				SND_SOC_DAPM_POST_PMU | SND_SOC_DAPM_POST_PMD),
-#if 1  // JMLEE 1021 Changes add
-	SND_SOC_DAPM_AIF_OUT_E("SLIM TX3", "AIF2 Capture", 0, SND_SOC_NOPM, 0,
-				0, tabla_codec_enable_slimtx,
-				SND_SOC_DAPM_POST_PMU | SND_SOC_DAPM_POST_PMD),
-#endif
-#endif
 	SND_SOC_DAPM_MUX("SLIM TX4 MUX", SND_SOC_NOPM, 0, 0, &sb_tx4_mux),
-#if 0	// before 1031
-	SND_SOC_DAPM_AIF_OUT_E("SLIM TX4", "AIF2 Capture", 0, SND_SOC_NOPM, 0,
-				0, tabla_codec_enable_slimtx,
-				SND_SOC_DAPM_POST_PMU | SND_SOC_DAPM_POST_PMD),
-#if 1  // JMLEE 1021 Changes add
-	SND_SOC_DAPM_AIF_OUT_E("SLIM TX4", "AIF2 Capture", 0, SND_SOC_NOPM, 0,
-				0, tabla_codec_enable_slimtx,
-				SND_SOC_DAPM_POST_PMU | SND_SOC_DAPM_POST_PMD),
-#endif
-#endif
 	SND_SOC_DAPM_MUX("SLIM TX5 MUX", SND_SOC_NOPM, 0, 0, &sb_tx5_mux),
-#if 0	// before 1031
-	SND_SOC_DAPM_AIF_OUT_E("SLIM TX5", "AIF3 Capture", 0, SND_SOC_NOPM, 0,
-				0, tabla_codec_enable_slimtx,
-				SND_SOC_DAPM_POST_PMU | SND_SOC_DAPM_POST_PMD),
-#endif
 	SND_SOC_DAPM_MUX("SLIM TX6 MUX", SND_SOC_NOPM, 0, 0, &sb_tx6_mux),
-#if 0	// before 1031
-	// SD epos check FC miss //SND_SOC_DAPM_AIF_OUT_E("SLIM TX6", "AIF2 Capture", 0, SND_SOC_NOPM, 0,
-	SND_SOC_DAPM_AIF_OUT_E("SLIM TX6", "AIF1 Capture", 0, SND_SOC_NOPM, 0,
-				0, tabla_codec_enable_slimtx,
-				SND_SOC_DAPM_POST_PMU | SND_SOC_DAPM_POST_PMD),
-#endif
 	SND_SOC_DAPM_MUX("SLIM TX7 MUX", SND_SOC_NOPM, 0, 0, &sb_tx7_mux),
-#if 0	// before 1031
-	SND_SOC_DAPM_AIF_OUT_E("SLIM TX7", "AIF1 Capture", 0, SND_SOC_NOPM, 0,
-				0, tabla_codec_enable_slimtx,
-				SND_SOC_DAPM_POST_PMU | SND_SOC_DAPM_POST_PMD),
-#endif
 	SND_SOC_DAPM_MUX("SLIM TX8 MUX", SND_SOC_NOPM, 0, 0, &sb_tx8_mux),
-	#if 0	// before 1031
-	SND_SOC_DAPM_AIF_OUT_E("SLIM TX8", "AIF1 Capture", 0, SND_SOC_NOPM, 0,
-				0, tabla_codec_enable_slimtx,
-				SND_SOC_DAPM_POST_PMU | SND_SOC_DAPM_POST_PMD),
-#endif
 	SND_SOC_DAPM_MUX("SLIM TX9 MUX", SND_SOC_NOPM, 0, 0, &sb_tx9_mux),
-#if 0	// before 1031
-	SND_SOC_DAPM_AIF_OUT_E("SLIM TX9", "AIF1 Capture", NULL, SND_SOC_NOPM,
-			0, 0, tabla_codec_enable_slimtx,
-			SND_SOC_DAPM_POST_PMU | SND_SOC_DAPM_POST_PMD),
-#if 1  // JMLEE 1021 Changes add
-	SND_SOC_DAPM_AIF_OUT_E("SLIM TX9", "AIF2 Capture", NULL, SND_SOC_NOPM,
-			0, 0, tabla_codec_enable_slimtx,
-			SND_SOC_DAPM_POST_PMU | SND_SOC_DAPM_POST_PMD),
-
-#endif
-#endif
 	SND_SOC_DAPM_MUX("SLIM TX10 MUX", SND_SOC_NOPM, 0, 0, &sb_tx10_mux),
-	#if 0	// before 1031
-	SND_SOC_DAPM_AIF_OUT_E("SLIM TX10", "AIF1 Capture", NULL, SND_SOC_NOPM,
-			0, 0, tabla_codec_enable_slimtx,
-			SND_SOC_DAPM_POST_PMU | SND_SOC_DAPM_POST_PMD),
-#endif
 
 	/* Digital Mic Inputs */
 	SND_SOC_DAPM_ADC_E("DMIC1", NULL, SND_SOC_NOPM, 0, 0,
@@ -7877,8 +7806,6 @@ static int tabla_handle_pdata(struct tabla_priv *tabla)
 		pdata->micbias.cfilt2_mv);
 	k3 = tabla_find_k_value(pdata->micbias.ldoh_v,
 		pdata->micbias.cfilt3_mv);
-
-	pr_err("[JIMMY] %s: ldoh_v = %d, cfilt2_mv = %d, k2 = %d\n", __func__, pdata->micbias.ldoh_v, pdata->micbias.cfilt2_mv, k2);	//Jimmy
 
 	if (IS_ERR_VALUE(k1) || IS_ERR_VALUE(k2) || IS_ERR_VALUE(k3)) {
 		rc = -EINVAL;

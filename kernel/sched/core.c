@@ -81,92 +81,11 @@
 #include <asm/paravirt.h>
 #endif
 
-#if defined(CONFIG_PANTECH_DEBUG) && !defined(CONFIG_PANTECH_USER_BUILD)
-#ifdef CONFIG_PANTECH_DEBUG_SCHED_LOG  //p14291_121102
-#include <mach/pantech_apanic.h> 
-#endif
-#endif
-
 #include "sched.h"
 #include "../workqueue_sched.h"
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/sched.h>
-
-#define ALRANULIS_VER (2012.10.31,ALRAN,JB,k3.4,v3.3)
-
-#if defined(CONFIG_QC_ABNORMAL_DEBUG_CODE) && !defined(CONFIG_PANTECH_USER_BUILD)
-struct ScheduleLogData {
-    unsigned long ulTick;
-    unsigned long ulMsec;
-    unsigned int unPid;
-    unsigned int reserved;
-    unsigned char ucComm[16];
-};
-//MAX_KERNEL_SCHEDULE_LOGS = (1048576)/4/CONFIG_NR_CPUS/32;
-//1MB was defined at board file, 1/4 of that
-//sizeof(struct ScheduleLogData);
-#define MAX_KERNEL_SCHEDULE_LOGS (2048)
-extern uint32_t msm_timer_get_sclk_ticks(void);
-static int cn = 0;
-struct ScheduleLogDataWrap {
-    struct ScheduleLogData sp[4][MAX_KERNEL_SCHEDULE_LOGS]; //CPU =2
-};
-struct ScheduleLogDataWrap *pScheduleLogData = 0;
-static int nNextLogIdx[4] = {0,0,0,0}; //max QUAD core
-void enable_uncache_sched_log(char * start, int size) {
-    pScheduleLogData = (struct ScheduleLogDataWrap*)start;
-    //MAX_KERNEL_SCHEDULE_LOGS = size / cpus / sizeof(struct ScheduleLogData);
-}
-EXPORT_SYMBOL(enable_uncache_sched_log);
-
-void printk_u16s(int code, char *s)
-{
-    if (pScheduleLogData != NULL) {
-        unsigned long long t;
-        int i, cpu = smp_processor_id();
-        struct ScheduleLogData *p;
-        i = nNextLogIdx[cpu];
-        p = &(pScheduleLogData->sp[cpu][i]);
-
-        t = sched_clock();
-        p->ulMsec = do_div(t, 1000000000) / 1000;
-        p->ulTick = (unsigned long) t;
-        p->unPid = current->pid;
-        p->reserved = code;
-        strncpy(p->ucComm, s, 16);
-        nNextLogIdx[cpu] = ++i & (MAX_KERNEL_SCHEDULE_LOGS - 1);
-    }
-}
-EXPORT_SYMBOL(printk_u16s);
-
-void smc_log(int code, unsigned r0, unsigned r1, unsigned r2, unsigned r3, unsigned r4)
-{
-    if (pScheduleLogData != NULL) {
-        unsigned long long t;
-        int i, cpu = smp_processor_id();
-        struct ScheduleLogData *p;
-        i = nNextLogIdx[cpu];
-        p = &(pScheduleLogData->sp[cpu][i]);
-
-        t = sched_clock();
-        p->ulMsec = do_div(t, 1000000000) / 1000;
-        p->ulTick = (unsigned long) t;
-        p->unPid = current->pid;
-        p->reserved = code;
-        *(unsigned *)(p->ucComm)      = r0;
-        *(unsigned *)(p->ucComm +  4) = r1;
-        *(unsigned *)(p->ucComm +  8) = r2;
-        *(unsigned *)(p->ucComm + 12) = r3;
-        *(unsigned *)(p->ucComm + 16) = r4;
-        nNextLogIdx[cpu] = ++i & (MAX_KERNEL_SCHEDULE_LOGS - 1);
-    }
-}
-EXPORT_SYMBOL(smc_log);
-#else
-#define printk_u16s
-#define smc_log
-#endif
 
 void start_bandwidth_timer(struct hrtimer *period_timer, ktime_t period)
 {
@@ -2163,32 +2082,6 @@ context_switch(struct rq *rq, struct task_struct *prev,
 	spin_release(&rq->lock.dep_map, 1, _THIS_IP_);
 #endif
 
-#if defined(CONFIG_QC_ABNORMAL_DEBUG_CODE) && !defined(CONFIG_PANTECH_USER_BUILD)
-	if (pScheduleLogData != NULL)
-	{
-		unsigned long long t;
-		int i, cpu = smp_processor_id();
-		struct ScheduleLogData *p;
-		i = nNextLogIdx[cpu];
-		p = &(pScheduleLogData->sp[cpu][i]);
-
-		if (prev != NULL) {
-			p->reserved = 0;
-			cn++;
-			if (cn > 10)
-			{ //save sleep clock every 10 schedule
-				p->reserved = msm_timer_get_sclk_ticks();
-				cn = 0;
-			}
-			t = sched_clock();
-			p->ulMsec = do_div(t, 1000000000) / 1000;
-			p->ulTick = (unsigned long) t;
-			p->unPid = next->pid;
-			strncpy(p->ucComm, next->comm, 16);
-			nNextLogIdx[cpu] = ++i & (MAX_KERNEL_SCHEDULE_LOGS - 1);
-		}
-	}
-#endif
 	/* Here we just switch the register state and the stack. */
 	switch_to(prev, next, prev);
 
@@ -3347,13 +3240,6 @@ need_resched:
 		 * is still correct, but it can be moved to another cpu/rq.
 		 */
 		cpu = smp_processor_id();
-        
-#if defined(CONFIG_PANTECH_DEBUG) && !defined(CONFIG_PANTECH_USER_BUILD)
-#ifdef CONFIG_PANTECH_DEBUG_SCHED_LOG  //p14291_121102
-		pantech_debug_task_sched_log(cpu, rq->curr);
-#endif
-#endif
-        
 		rq = cpu_rq(cpu);
 	} else
 		raw_spin_unlock_irq(&rq->lock);
@@ -3489,13 +3375,6 @@ asmlinkage void __sched preempt_schedule_irq(void)
 
 	do {
 		add_preempt_count(PREEMPT_ACTIVE);
-
-#if defined(CONFIG_PANTECH_DEBUG) && !defined(CONFIG_PANTECH_USER_BUILD)
-#ifdef CONFIG_PANTECH_DEBUG_SCHED_LOG  //p14291_121102
-    	pantechdbg_sched_msg(">prmptsched_irq");
-#endif
-#endif
-        
         local_irq_enable();		
 		__schedule();
 		local_irq_disable();

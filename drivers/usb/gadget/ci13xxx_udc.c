@@ -414,15 +414,7 @@ static int hw_ep_flush(int num, int dir)
 {
 	ktime_t start, diff;
 	int n = hw_ep_bit(num, dir);
-	//p16102 QC patch
 
-	struct ci13xxx_ep *mEp = &_udc->ci13xxx_ep[n];
-
-    //   if (list_empty(&mEp->qh.queue))
-    if (_udc->skip_flush || list_empty(&mEp->qh.queue)) // p16102 QC patch
-         return 0;
-	   
-	//p16102 QC patch
 	start = ktime_get();
 	do {
 		/* flush any pending transfer */
@@ -436,8 +428,6 @@ static int hw_ep_flush(int num, int dir)
 					__func__, num,
 					dir ? "IN" : "OUT");
 				debug_ept_flush_info(num, dir);
-				
-				 _udc->skip_flush = true; // p16102 QC patch
 				return 0;
 			}
 		}
@@ -455,9 +445,7 @@ static int hw_ep_flush(int num, int dir)
  */
 static int hw_ep_disable(int num, int dir)
 {
-
-	//hw_ep_flush(num, dir); p16102 QC patch
-	
+	hw_ep_flush(num, dir);
 	hw_cwrite(CAP_ENDPTCTRL + num * sizeof(u32),
 		  dir ? ENDPTCTRL_TXE : ENDPTCTRL_RXE, 0);
 	return 0;
@@ -2023,20 +2011,7 @@ static int _hardware_dequeue(struct ci13xxx_ep *mEp, struct ci13xxx_req *mReq)
 	if (mReq->zptr) {
 		if ((TD_STATUS_ACTIVE & mReq->zptr->token) != 0)
 			return -EBUSY;
-// P12125, Daytona FABRIC Hang Issue [CR474557] --->>>			
-		//dma_pool_free(mEp->td_pool, mReq->zptr, mReq->zdma);
-
-		/* The controller may access this dTD one more time.
-		 * Defer freeing this to next zero length dTD completion.
-		 * It is safe to assume that controller will no longer
-		 * access the previous dTD after next dTD completion.
-		 */
-		if (mEp->last_zptr)
-			dma_pool_free(mEp->td_pool, mEp->last_zptr,
-					mEp->last_zdma);
-		mEp->last_zptr = mReq->zptr;
-		mEp->last_zdma = mReq->zdma;
-// P12125, Daytona FABRIC Hang Issue [CR474557] ---<<<
+		dma_pool_free(mEp->td_pool, mReq->zptr, mReq->zdma);
 		mReq->zptr = NULL;
 	}
 
@@ -2140,6 +2115,7 @@ __acquires(mEp->lock)
  */
 static int _gadget_stop_activity(struct usb_gadget *gadget)
 {
+	struct usb_ep *ep;
 	struct ci13xxx    *udc = container_of(gadget, struct ci13xxx, gadget);
 	unsigned long flags;
 
@@ -2160,23 +2136,25 @@ static int _gadget_stop_activity(struct usb_gadget *gadget)
 	gadget->host_request = 0;
 	gadget->otg_srp_reqd = 0;
 
-	udc->driver->disconnect(gadget);
+	/* flush all endpoints */
+	gadget_for_each_ep(ep, gadget) {
+		usb_ep_fifo_flush(ep);
+	}
 	usb_ep_fifo_flush(&udc->ep0out.ep);
 	usb_ep_fifo_flush(&udc->ep0in.ep);
 
-// P12125, Daytona FABRIC Hang Issue [CR474557] --->>>
-	
-	//if (udc->status != NULL) {
-	//	usb_ep_free_request(&udc->ep0in.ep, udc->status);
-	//	udc->status = NULL;
-	//}
+	udc->driver->disconnect(gadget);
 
-	if (udc->ep0in.last_zptr) {
-		dma_pool_free(udc->ep0in.td_pool, udc->ep0in.last_zptr,
-				udc->ep0in.last_zdma);
-		udc->ep0in.last_zptr = NULL;
+	/* make sure to disable all endpoints */
+	gadget_for_each_ep(ep, gadget) {
+		usb_ep_disable(ep);
 	}
-// P12125, Daytona FABRIC Hang Issue [CR474557] ---<<< 
+
+	if (udc->status != NULL) {
+		usb_ep_free_request(&udc->ep0in.ep, udc->status);
+		udc->status = NULL;
+	}
+
 	return 0;
 }
 
@@ -2223,15 +2201,15 @@ __acquires(udc->lock)
 	retval = _gadget_stop_activity(&udc->gadget);
 	if (retval)
 		goto done;
-	 _udc->skip_flush = false; // p16102 QC patch
+
 	retval = hw_usb_reset();
 	if (retval)
 		goto done;
-// P12125, Daytona FABRIC Hang Issue [CR474557] --->>>
-	//udc->status = usb_ep_alloc_request(&udc->ep0in.ep, GFP_ATOMIC);
-	//if (udc->status == NULL)
-	//	retval = -ENOMEM;
-// P12125, Daytona FABRIC Hang Issue [CR474557] ---<<<
+
+	udc->status = usb_ep_alloc_request(&udc->ep0in.ep, GFP_ATOMIC);
+	if (udc->status == NULL)
+		retval = -ENOMEM;
+
 	spin_lock(udc->lock);
 
  done:
@@ -2299,12 +2277,9 @@ static void isr_get_status_complete(struct usb_ep *ep, struct usb_request *req)
 		err("EINVAL");
 		return;
 	}
-// P12125, Daytona FABRIC Hang Issue [CR474557] --->>>
-//	kfree(req->buf);
-//	usb_ep_free_request(ep, req);
-       if (req->status)
-	   	err("GET_STATUS failed");
-// P12125, Daytona FABRIC Hang Issue [CR474557] ---<<<
+
+	kfree(req->buf);
+	usb_ep_free_request(ep, req);
 }
 
 /**
@@ -2320,11 +2295,8 @@ __releases(mEp->lock)
 __acquires(mEp->lock)
 {
 	struct ci13xxx_ep *mEp = &udc->ep0in;
-// P12125, Daytona FABRIC Hang Issue [CR474557] --->>>
-	//struct usb_request *req = NULL;
-	//gfp_t gfp_flags = GFP_ATOMIC;
-	struct usb_request *req = udc->status;
-// P12125, Daytona FABRIC Hang Issue [CR474557] ---<<<
+	struct usb_request *req = NULL;
+	gfp_t gfp_flags = GFP_ATOMIC;
 	int dir, num, retval;
 
 	trace("%p, %p", mEp, setup);
@@ -2332,24 +2304,19 @@ __acquires(mEp->lock)
 	if (mEp == NULL || setup == NULL)
 		return -EINVAL;
 
-// P12125, Daytona FABRIC Hang Issue [CR474557] --->>>
-	//spin_unlock(mEp->lock);
-	//req = usb_ep_alloc_request(&mEp->ep, gfp_flags);
-	//spin_lock(mEp->lock);
-	//if (req == NULL)
-	//	return -ENOMEM;
-// P12125, Daytona FABRIC Hang Issue [CR474557] ---<<<
+	spin_unlock(mEp->lock);
+	req = usb_ep_alloc_request(&mEp->ep, gfp_flags);
+	spin_lock(mEp->lock);
+	if (req == NULL)
+		return -ENOMEM;
 
 	req->complete = isr_get_status_complete;
 	req->length   = 2;
-// P12125, Daytona FABRIC Hang Issue [CR474557] --->>>
-	//req->buf      = kzalloc(req->length, gfp_flags);
-	//if (req->buf == NULL) {
-	//	retval = -ENOMEM;
-	//	goto err_free_req;
-	//}
-	req->buf      = udc->status_buf;
-// P12125, Daytona FABRIC Hang Issue [CR474557] ---<<<
+	req->buf      = kzalloc(req->length, gfp_flags);
+	if (req->buf == NULL) {
+		retval = -ENOMEM;
+		goto err_free_req;
+	}
 
 	if ((setup->bRequestType & USB_RECIP_MASK) == USB_RECIP_DEVICE) {
 		if (setup->wIndex == OTG_STATUS_SELECTOR) {
@@ -2372,21 +2339,18 @@ __acquires(mEp->lock)
 	/* else do nothing; reserved for future use */
 
 	spin_unlock(mEp->lock);
-// P12125, Daytona FABRIC Hang Issue [CR474557] --->>>
-	//retval = usb_ep_queue(&mEp->ep, req, gfp_flags);
-	//spin_lock(mEp->lock);
-	//if (retval)
-	//	goto err_free_buf;
+	retval = usb_ep_queue(&mEp->ep, req, gfp_flags);
+	spin_lock(mEp->lock);
+	if (retval)
+		goto err_free_buf;
 
-	//return 0;
+	return 0;
 
- 	//err_free_buf:
-	//kfree(req->buf);
- 	//err_free_req:
-	//spin_unlock(mEp->lock);
-	//usb_ep_free_request(&mEp->ep, req);
-	retval = usb_ep_queue(&mEp->ep, req, GFP_ATOMIC);
-// P12125, Daytona FABRIC Hang Issue [CR474557] ---<<<
+ err_free_buf:
+	kfree(req->buf);
+ err_free_req:
+	spin_unlock(mEp->lock);
+	usb_ep_free_request(&mEp->ep, req);
 	spin_lock(mEp->lock);
 	return retval;
 }
@@ -2429,16 +2393,12 @@ __acquires(mEp->lock)
 	trace("%p", udc);
 
 	mEp = (udc->ep0_dir == TX) ? &udc->ep0out : &udc->ep0in;
-// P12125, Daytona FABRIC Hang Issue [CR474557] --->>>
-	//if (udc->status) {
-	//	udc->status->context = udc;
-	//	udc->status->complete = isr_setup_status_complete;
-	//} else
-	//	return -EINVAL;
+	if (udc->status) {
 		udc->status->context = udc;
 		udc->status->complete = isr_setup_status_complete;
-	udc->status->length = 0;
-// P12125, Daytona FABRIC Hang Issue [CR474557] ---<<<
+	} else
+		return -EINVAL;
+
 	spin_unlock(mEp->lock);
 	retval = usb_ep_queue(&mEp->ep, udc->status, GFP_ATOMIC);
 	spin_lock(mEp->lock);
@@ -2834,14 +2794,6 @@ static int ep_disable(struct usb_ep *ep)
 
 	} while (mEp->dir != direction);
 
-// P12125, Daytona FABRIC Hang Issue [CR474557] --->>>
-	if (mEp->last_zptr) {
-		dma_pool_free(mEp->td_pool, mEp->last_zptr,
-				mEp->last_zdma);
-		mEp->last_zptr = NULL;
-	}
-// P12125, Daytona FABRIC Hang Issue [CR474557] ---<<<
-
 	mEp->desc = NULL;
 	mEp->ep.desc = NULL;
 	mEp->ep.maxpacket = USHRT_MAX;
@@ -2935,9 +2887,6 @@ static int ep_queue(struct usb_ep *ep, struct usb_request *req,
 
 	if (ep == NULL || req == NULL || mEp->desc == NULL)
 		return -EINVAL;
-
-	if (!udc->softconnect)
-		return -ENODEV;
 
 	spin_lock_irqsave(mEp->lock, flags);
 
@@ -3356,16 +3305,6 @@ static int ci13xxx_start(struct usb_gadget_driver *driver,
 	retval = usb_ep_enable(&udc->ep0in.ep);
 	if (retval)
 		return retval;
-// P12125, Daytona FABRIC Hang Issue [CR474557] --->>>
-       udc->status = usb_ep_alloc_request(&udc->ep0in.ep, GFP_KERNEL);
-       if (!udc->status)
-               return -ENOMEM;
-       udc->status_buf = kzalloc(2, GFP_KERNEL); /* for GET_STATUS */
-       if (!udc->status_buf) {
-		usb_ep_free_request(&udc->ep0in.ep, udc->status);
-	        return -ENOMEM;
-	}
-// P12125, Daytona FABRIC Hang Issue [CR474557] ---<<<
 	spin_lock_irqsave(udc->lock, flags);
 
 	udc->gadget.ep0 = &udc->ep0in.ep;
@@ -3443,10 +3382,6 @@ static int ci13xxx_stop(struct usb_gadget_driver *driver)
 	spin_unlock_irqrestore(udc->lock, flags);
 	driver->unbind(&udc->gadget);               /* MAY SLEEP */
 	spin_lock_irqsave(udc->lock, flags);
-// P12125, Daytona FABRIC Hang Issue [CR474557] --->>>
-	usb_ep_free_request(&udc->ep0in.ep, udc->status);
-	kfree(udc->status_buf);
-// P12125, Daytona FABRIC Hang Issue [CR474557] ---<<<
 
 	udc->gadget.dev.driver = NULL;
 

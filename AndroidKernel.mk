@@ -58,25 +58,6 @@ mpath=`dirname $$mdpath`; rm -rf $$mpath;\
 fi
 endef
 
-define exfat-module
-if test -e kheaders*.tar.bz2;then\
-rm -rf kheaders*.tar.bz2;\
-fi
-if test -e tuxera-exfat-3012.4.9.2-apq8064.tgz;then\
-rm -rf tuxera-exfat-3012.4.9.2-apq8064.tgz;\
-rm -rf tuxera-exfat-3012.4.9.2-apq8064;\
-fi
-if test -e tuxera-exfat-*-apq8064.tgz;then\
-rm -rf tuxera-exfat-*-apq8064.tgz;\
-rm -rf tuxera-exfat-*-apq8064;\
-fi
-./tuxera_update.sh  --target target/pantech.d/apq8064_3012.10.21 --source-dir $(TOP)/kernel --output-dir $(KERNEL_OUT) -a --user pantech --pass feke57aze93ni --use-cache --cache-dir $(TOP)/tuxera_exfat_hash
-tar -xvzf tuxera-exfat-*-apq8064.tgz
-cp tuxera-exfat-*-apq8064/exfat/kernel-module/texfat.ko $(KERNEL_MODULES_OUT)
--mkdir $(TARGET_OUT)/bin
-cp external/exFat/utils/* $(TARGET_OUT)/bin
-endef
-
 $(KERNEL_OUT):
 	mkdir -p $(KERNEL_OUT)
 
@@ -93,7 +74,6 @@ $(TARGET_PREBUILT_INT_KERNEL): $(KERNEL_OUT) $(KERNEL_CONFIG) $(KERNEL_HEADERS_I
 	$(mv-modules)
 	$(clean-module-folder)
 	$(append-dtb)
-	$(exfat-module)
 
 $(KERNEL_HEADERS_INSTALL): $(KERNEL_OUT) $(KERNEL_CONFIG)
 	$(MAKE) -C kernel O=../$(KERNEL_OUT) ARCH=arm CROSS_COMPILE=arm-eabi- headers_install

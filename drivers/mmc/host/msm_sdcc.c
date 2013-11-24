@@ -45,7 +45,6 @@
 #include <linux/regulator/consumer.h>
 #include <linux/slab.h>
 #include <linux/pm_qos.h>
-#include <linux/sysrq.h> //p14291_test
 
 #include <asm/cacheflush.h>
 #include <asm/div64.h>
@@ -160,72 +159,6 @@ static void msmsdcc_sg_start(struct msmsdcc_host *host);
 static int msmsdcc_vreg_reset(struct msmsdcc_host *host);
 static int msmsdcc_runtime_resume(struct device *dev);
 
-//<20130109> p14986 sim,jungsun. QCT Patch
-#if 0
-#define MSMSDCC_TRACE_MAX_HOSTS		5
-
-static struct msmsdcc_host *msmsdcc_hosts[MSMSDCC_TRACE_MAX_HOSTS];
-
-void msmsdcc_trace_write(struct msmsdcc_host *host, int in_irq,
-			 const char *fmt, ...)
-{
-	u64 ts = 0;
-	unsigned int idx;
-	va_list args;
-	struct msmsdcc_trace_event *event;
-
-	if (!host->trace_buf.rbuf)
-		return;
-
-	/* To prevent taking a spinlock here an atomic increment
-	 * is used, and modulus is used to keep index within
-	 * array bounds. The cast to unsigned is necessary so
-	 * increment and rolover wraps to 0 correctly
-	 */
-	idx = ((unsigned int)atomic_inc_return(&host->trace_buf.wr_idx)) &
-		(MSMSDCC_TRACE_RBUF_NUM_EVENTS - 1);
-
-	/* Catch some unlikely machine specific wrap-around bug */
-	if (unlikely(idx > (MSMSDCC_TRACE_RBUF_NUM_EVENTS - 1)))
-		return;
-
-	/* No timestamp in irq to speed up logging as cpu_clock()
-	 * may have barriers
-	 */
-	if (!in_irq)
-		ts = cpu_clock(0);
-
-	event = &host->trace_buf.rbuf[idx];
-	va_start(args, fmt);
-	vscnprintf(event->data, MSMSDCC_TRACE_EVENT_DATA_SZ, fmt, args);
-	va_end(args);
-}
-
-#define SDCC_TRACE(host, fmt, ...) \
-		msmsdcc_trace_write(host, 0, fmt, ##__VA_ARGS__);
-#define SDCC_TRACE_IRQ(host, fmt, ...) \
-		msmsdcc_trace_write(host, 0, fmt, ##__VA_ARGS__);
-
-static void msmsdcc_trace_init(struct msmsdcc_host *host)
-{
-	BUILD_BUG_ON_NOT_POWER_OF_2(MSMSDCC_TRACE_RBUF_NUM_EVENTS);
-
-	if (host->pdev_id > MSMSDCC_TRACE_MAX_HOSTS)
-		return;
-	msmsdcc_hosts[host->pdev_id - 1] = host;
-
-	host->trace_buf.rbuf = (struct msmsdcc_trace_event *)
-				__get_free_pages(GFP_KERNEL|__GFP_ZERO,
-				MSMSDCC_TRACE_RBUF_SZ_ORDER);
-
-	if (!host->trace_buf.rbuf) {
-		pr_err("Unable to allocate trace for msmsdcc.%d\n",
-		       host->pdev_id);
-		return;
-	}
-	atomic_set(&host->trace_buf.wr_idx, -1);
-}
-#endif
 static inline unsigned short msmsdcc_get_nr_sg(struct msmsdcc_host *host)
 {
 	unsigned short ret = NR_SG;
@@ -1443,17 +1376,6 @@ msmsdcc_start_data(struct msmsdcc_host *host, struct mmc_data *data,
 static void
 msmsdcc_start_command(struct msmsdcc_host *host, struct mmc_command *cmd, u32 c)
 {
-#ifndef CONFIG_MMC_DEBUG_FOR_HYNIX
-	//p14291_test
-	if(host->mmc->card && host->mmc->card->type == MMC_TYPE_MMC && (cmd->opcode == 24 ||cmd->opcode == 25))
-	{
-	//	if(mmc_test_flag == 0x12127878)
-		//	cmd->arg = 0;
-			
-		if(cmd->arg >=0 && cmd->arg <= 16)
-			panic("Invalid sector address for writting to MMC..!!!\n");
-	}
-#endif
 	msmsdcc_start_command_deferred(host, cmd, &c);
 	msmsdcc_start_command_exec(host, cmd->arg, c);
 }
@@ -1958,15 +1880,6 @@ msmsdcc_irq(int irq, void *dev_id)
 		if (((readl_relaxed(host->base + MMCIMASK0) & status) &
 						(~(MCI_IRQ_PIO))) == 0)
 			break;
-#if 0
-//<20130109> p14986 sim,jungsun. QCT Patch
-		SDCC_TRACE_IRQ(host, "%lld: 0xC= 0x%08x, 0x2C= 0x%08x, 0x30= 0x%08x, 0x34= 0x%08x\n",
-				ktime_to_ms(ktime_get()),
-				readl_relaxed(host->base + 0xC),
-				readl_relaxed(host->base + 0x2C),
-				readl_relaxed(host->base + 0x30),
-				readl_relaxed(host->base + 0x34));
-#endif
 
 #if IRQ_DEBUG
 		msmsdcc_print_status(host, "irq0-r", status);
@@ -2280,11 +2193,7 @@ msmsdcc_request(struct mmc_host *mmc, struct mmc_request *mrq)
 	if ((mmc->card) && (mmc->card->quirks & MMC_QUIRK_INAND_DATA_TIMEOUT))
 		host->curr.req_tout_ms = 20000;
 	else
-#ifdef CONFIG_MMC_DEBUG_FOR_HYNIX /* To increase the request timeout value. (youngkyu.jeon@skhynix.com) */
-		host->curr.req_tout_ms = 40000;
-#else
 		host->curr.req_tout_ms = MSM_MMC_REQ_TIMEOUT;
-#endif
 	/*
 	 * Kick the software request timeout timer here with the timeout
 	 * value identified above
@@ -5159,32 +5068,7 @@ static void msmsdcc_dump_sdcc_state(struct msmsdcc_host *host)
 		host->curr.got_auto_prog_done, host->curr.req_tout_ms);
 	msmsdcc_print_rpm_info(host);
 }
-#if 0
-//<20130109> p14986 sim,jungsun. QCT Patch
-static void msmsdcc_dump_irq_buffer(struct msmsdcc_host *host)
-{
-	unsigned int idx, l;
-	unsigned int N = MSMSDCC_TRACE_RBUF_NUM_EVENTS - 1;
-	struct msmsdcc_trace_event *event;
 
-	if (!host->trace_buf.rbuf)
-		return;
-
-	idx = ((unsigned int)atomic_read(&host->trace_buf.wr_idx)) & N;
-	l = (idx + 1) & N;
-
-	do {
-		event = &host->trace_buf.rbuf[l];
-		pr_info("%s", (char *)event->data);
-		l = (l + 1) & N;
-		if (l == idx) {
-			event = &host->trace_buf.rbuf[l];
-			pr_info("%s", (char *)event->data);
-			break;
-		}
-	} while (1);
-}
-#endif
 static void msmsdcc_req_tout_timer_hdlr(unsigned long data)
 {
 	struct msmsdcc_host *host = (struct msmsdcc_host *)data;
@@ -6717,18 +6601,16 @@ static int msmsdcc_pm_resume(struct device *dev)
 	if (host->plat->is_sdio_al_client)
 		return 0;
 
-	if (mmc->card && mmc_card_sdio(mmc->card)) {
+	if (mmc->card && mmc_card_sdio(mmc->card))
 		rc = msmsdcc_runtime_resume(dev);
-	}
 	/*
 	 * As runtime PM is enabled before calling the device's platform resume
 	 * callback, we use the pm_runtime_suspended API to know if SDCC is
 	 * really runtime suspended or not and set the pending_resume flag only
 	 * if its not runtime suspended.
 	 */
-	else if (!pm_runtime_suspended(dev)) {
+	else if (!pm_runtime_suspended(dev))
 		host->pending_resume = true;
-	}
 
 	if (host->plat->status_irq) {
 		msmsdcc_check_status((unsigned long)host);
@@ -6800,9 +6682,6 @@ static int __init msmsdcc_init(void)
 		return ret;
 	}
 #endif
-
-	//mmc_test_flag = 0; //p14291_test
-
 	return platform_driver_register(&msmsdcc_driver);
 }
 

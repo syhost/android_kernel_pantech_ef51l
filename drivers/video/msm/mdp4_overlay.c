@@ -717,14 +717,8 @@ void mdp4_overlay_rgb_setup(struct mdp4_overlay_pipe *pipe)
 		op_mode &= ~(MDP4_OP_FLIP_LR + MDP4_OP_SCALEX_EN);
 		op_mode &= ~(MDP4_OP_FLIP_UD + MDP4_OP_SCALEY_EN);
 		outpdw(rgb_base + 0x0058, op_mode);/* MDP_RGB_OP_MODE */
-	} else {
-		if (pipe->op_mode & MDP4_OP_FLIP_LR && mdp_rev >= MDP_REV_42) {
-			/* Enable x-scaling bit to enable LR flip */
-			/* for MDP > 4.2 targets */
-			pipe->op_mode |= 0x01;
-		}
+	} else
 		outpdw(rgb_base + 0x0058, pipe->op_mode);/* MDP_RGB_OP_MODE */
-	}
 	outpdw(rgb_base + 0x005c, pipe->phasex_step);
 	outpdw(rgb_base + 0x0060, pipe->phasey_step);
 
@@ -1737,7 +1731,6 @@ void mdp4_overlay_borderfill_stage_up(struct mdp4_overlay_pipe *pipe)
 	struct mdp4_overlay_pipe *bspipe;
 	int ptype, pnum, pndx, mixer;
 	int format, alpha_enable, alpha;
-	struct mdp4_iommu_pipe_info iom;
 
 	if (pipe->pipe_type != OVERLAY_TYPE_BF)
 		return;
@@ -1758,7 +1751,6 @@ void mdp4_overlay_borderfill_stage_up(struct mdp4_overlay_pipe *pipe)
 	/* save original base layer */
 	ctrl->baselayer[mixer] = bspipe;
 
-	iom = pipe->iommu;
 	pipe->alpha = 0;	/* make sure bf pipe has alpha 0 */
 	ptype = pipe->pipe_type;
 	pnum = pipe->pipe_num;
@@ -1773,7 +1765,6 @@ void mdp4_overlay_borderfill_stage_up(struct mdp4_overlay_pipe *pipe)
 	pipe->src_format = format;
 	pipe->alpha_enable = alpha_enable;
 	pipe->alpha = alpha;
-	pipe->iommu = iom;
 
 	/* free original base layer pipe to be sued as normal pipe */
 	bspipe->pipe_used = 0;
@@ -2238,9 +2229,7 @@ void mdp4_overlay_pipe_free(struct mdp4_overlay_pipe *pipe)
 	ndx = pipe->pipe_ndx;
 	mixer = pipe->mixer_num;
 
-	/* No need for borderfill pipe */
-	if (pipe->pipe_type != OVERLAY_TYPE_BF)
-		mdp4_overlay_iommu_pipe_free(pipe->pipe_ndx, 0);
+	mdp4_overlay_iommu_pipe_free(pipe->pipe_ndx, 0);
 
 	iom = pipe->iommu;
 
@@ -3035,6 +3024,8 @@ static int get_img(struct msmfb_data *img, struct fb_info *info,
 				DISPLAY_SUBSYSTEM_ID)) {
 				ret = -1;
 			} else {
+				pr_warn("%s: mdp4_overlay play with FB memory\n",
+							 __func__);
 				*srcp_file = file;
 				*p_need = put_needed;
 			}

@@ -24,12 +24,6 @@
 #include <linux/nmi.h>
 #include <linux/dmi.h>
 
-#if defined(CONFIG_PANTECH_DEBUG) && !defined(CONFIG_PANTECH_USER_BUILD)
-#ifdef CONFIG_PANTECH_DEBUG_SCHED_LOG  //p14291_121102
-#include <mach/pantech_apanic.h>
-#endif
-#endif
-
 #define PANIC_TIMER_STEP 100
 #define PANIC_BLINK_SPD 18
 
@@ -106,12 +100,6 @@ void panic(const char *fmt, ...)
 	 */
 	if (!spin_trylock(&panic_lock))
 		panic_smp_self_stop();
-
-#if defined(CONFIG_PANTECH_DEBUG) && !defined(CONFIG_PANTECH_USER_BUILD)
-#ifdef CONFIG_PANTECH_DEBUG_SCHED_LOG  //p14291_121102
-	pantechdbg_sched_msg("!!panic!!");
-#endif
-#endif
 
 	console_verbose();
 	bust_spinlocks(1);

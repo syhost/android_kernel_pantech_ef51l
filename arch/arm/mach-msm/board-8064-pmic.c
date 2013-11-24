@@ -338,15 +338,9 @@ void __init apq8064_pm8xxx_gpio_mpp_init(void)
 					ARRAY_SIZE(pm8917_cdp_kp_gpios));
 	}
 
-	if (machine_is_apq8064_mtp()
-/*#if defined(CONFIG_MACH_APQ8064_EF48S) ||defined(CONFIG_MACH_APQ8064_EF49K) || defined(CONFIG_MACH_APQ8064_EF50L) || defined(CONFIG_MACH_APQ8064_EF51S) || defined(CONFIG_MACH_APQ8064_EF51L)
-	  || (machine_is_apq8064_ef48s() || machine_is_apq8064_ef49k() || machine_is_apq8064_ef50l() || machine_is_apq8064_ef51s() || machine_is_apq8064_ef51l() )
-#endif	*///p13795
-	)
-
+	if (machine_is_apq8064_mtp())
 		apq8064_configure_gpios(pm8921_mtp_kp_gpios,
 					ARRAY_SIZE(pm8921_mtp_kp_gpios));
-
 
 	if (machine_is_mpq8064_cdp() || machine_is_mpq8064_hrd()
 	    || machine_is_mpq8064_dtv())

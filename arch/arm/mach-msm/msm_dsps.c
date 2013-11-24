@@ -414,17 +414,6 @@ static void dsps_log_sfr(void)
  */
 static irqreturn_t dsps_wdog_bite_irq(int irq, void *dev_id)
 {
-// (+) p15060
-#if (0)
-#ifdef CONFIG_PANTECH_ERR_CRASH_LOGGING
-	if(sky_reset_reason != SYS_RESET_REASON_ABNORMAL){
-		pr_err("%s: Other failure detected first, skip dsps remote process error\n",
-			__func__);
-		return IRQ_HANDLED;	
-	}
-#endif
-#endif
-// (-) p15060
 	pr_err("%s\n", __func__);
 	dsps_log_sfr();
 	dsps_restart_handler();

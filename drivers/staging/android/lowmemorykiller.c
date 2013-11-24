@@ -38,9 +38,6 @@
 #include <linux/rcupdate.h>
 #include <linux/notifier.h>
 
-#if defined(CONFIG_PANTECH_MORE_DEBUGGING_INFO_ON_KERNEL) && !defined(CONFIG_PANTECH_USER_BUILD)
-extern void show_meminfo(void);
-#endif
 static uint32_t lowmem_debug_level = 2;
 static int lowmem_adj[6] = {
 	0,
@@ -79,48 +76,6 @@ static int test_task_flag(struct task_struct *p, int flag)
 	   } while_each_thread(p, t);
 	   return 0;
 }
-#if defined(CONFIG_PANTECH_MORE_DEBUGGING_INFO_ON_KERNEL) && !defined(CONFIG_PANTECH_USER_BUILD)
-/**
- * dump_tasks - dump current memory state of all system tasks
- *
- * State information includes task's pid, uid, tgid, vm size, rss, cpu, oom_adj
- * value, oom_score_adj value, and name.
- *
- * Call with tasklist_lock read-locked.
- */
-#define K(x) ((x) << (PAGE_SHIFT-10))
-static void dump_tasks(void)
-{
-       struct task_struct *p;
-       struct task_struct *task;
-       unsigned long vm = 0;
-       unsigned long rss = 0;
-       unsigned long percent = 0;
-
-       pr_info("[ pid ]   uid  total_vm      rss cpu oom_adj  suspect  name\n");
-       for_each_process(p) {
-               task = find_lock_task_mm(p);
-               if (!task) {
-                       /*
-                        * This is a kthread or all of p's threads have already
-                        * detached their mm's.  There's no need to report
-                        * them; they can't be oom killed anyway.
-                        */
-                       continue;
-               }
-               vm = task->mm->total_vm;
-               rss = get_mm_rss(task->mm);
-               percent = rss * 100 / vm;
-               pr_info("[%5d] %5d  %10lu %8lu %3u     %3d   %s%3lu%%    %s\n",
-                       task->pid, task_uid(task),
-                       vm, rss,
-                       task_cpu(task), task->signal->oom_adj,
-                       (K(vm) > 400000) && (percent > 25) ? "S1-" : "  ", percent, task->comm);
-
-               task_unlock(task);
-       }
-}
-#endif
 
 static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 {
@@ -132,9 +87,6 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 	int min_score_adj = OOM_SCORE_ADJ_MAX + 1;
 	int selected_tasksize = 0;
 	int selected_oom_score_adj;
-#if defined(CONFIG_PANTECH_MORE_DEBUGGING_INFO_ON_KERNEL) && !defined(CONFIG_PANTECH_USER_BUILD)	
-	int selected_oom_adj = 0;
-#endif
 	int array_size = ARRAY_SIZE(lowmem_adj);
 	int other_free = global_page_state(NR_FREE_PAGES);
 	int other_file = global_page_state(NR_FILE_PAGES) -
@@ -214,33 +166,14 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 		selected = p;
 		selected_tasksize = tasksize;
 		selected_oom_score_adj = oom_score_adj;
-#if defined(CONFIG_PANTECH_MORE_DEBUGGING_INFO_ON_KERNEL) && !defined(CONFIG_PANTECH_USER_BUILD)
-		selected_oom_adj = p->signal->oom_adj;
-		lowmem_print(4, "select %d (%s), oom_adj %d score_adj %d, size %d, to kill\n",
-			     p->pid, p->comm, selected_oom_adj, oom_score_adj, tasksize);
-#else
 		lowmem_print(4, "select %d (%s), adj %d, size %d, to kill\n",
 			     p->pid, p->comm, oom_score_adj, tasksize);
-#endif
 	}
 	if (selected) {
-#if defined(CONFIG_PANTECH_MORE_DEBUGGING_INFO_ON_KERNEL) && !defined(CONFIG_PANTECH_USER_BUILD)
-		lowmem_print(1, "send sigkill to %d (%s), oom_adj %d, score_adj %d, size %d\n",
-			     selected->pid, selected->comm, selected_oom_adj,
-			     selected_oom_score_adj, selected_tasksize);
-#else	
 		lowmem_print(1, "send sigkill to %d (%s), adj %d, size %d\n",
 			     selected->pid, selected->comm,
 			     selected_oom_score_adj, selected_tasksize);
-#endif
 		lowmem_deathpending_timeout = jiffies + HZ;
-#if defined(CONFIG_PANTECH_MORE_DEBUGGING_INFO_ON_KERNEL) && !defined(CONFIG_PANTECH_USER_BUILD)		
-		if (selected_oom_adj < 7)
-		{
-			show_meminfo();
-			dump_tasks();
-		}
-#endif
 		send_sig(SIGKILL, selected, 0);
 		set_tsk_thread_flag(selected, TIF_MEMDIE);
 		rem -= selected_tasksize;
