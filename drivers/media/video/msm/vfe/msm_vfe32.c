@@ -5618,8 +5618,6 @@ void msm_vfe_subdev_release(struct v4l2_subdev *sd)
 		(struct vfe32_ctrl_type *)v4l2_get_subdevdata(sd);
 	CDBG("vfe subdev release %p\n",
 		vfe32_ctrl->share_ctrl->vfebase);
-	printk("vfe subdev release %p\n",
-		vfe32_ctrl->share_ctrl->vfebase);
 }
 
 void axi_abort(struct axi_ctrl_t *axi_ctrl)

@@ -21,11 +21,6 @@
 #include "msm.h"
 #include "msm_cam_server.h"
 
-#if 0 //psj_test
-#undef CDBG
-#define CDBG(fmt, args...) printk(KERN_INFO "msm_csid: " fmt, ##args)//pr_debug(fmt, ##args)
-#endif
-
 #define V4L2_IDENT_CSID                            50002
 #define CSID_VERSION_V2                      0x02000011
 #define CSID_VERSION_V3                      0x30000000
