@@ -15,9 +15,7 @@
 #include "vcd_ddl_metadata.h"
 #include "vcd_ddl_shared_mem.h"
 #include "vcd_core.h"
-#if 1 // p12554 Case(00961929)_CR(395393)_VT_Reset_1035A
 #include "vcd_res_tracker_api.h"
-#endif
 
 #if defined(PIX_CACHE_DISABLE)
 #define DDL_PIX_CACHE_ENABLE  false
