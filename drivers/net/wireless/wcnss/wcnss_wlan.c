@@ -25,13 +25,9 @@
 #include <linux/delay.h>
 #include <linux/of.h>
 #include <linux/of_gpio.h>
-#include <mach/peripheral-loader.h> // PARKJH_TEMP, build error fix
-#include <linux/clk.h>
-
+#include <mach/peripheral-loader.h>
 #include <mach/msm_smd.h>
 #include <mach/msm_iomap.h>
-#include <mach/subsystem_restart.h>
-
 #ifdef CONFIG_WCNSS_MEM_PRE_ALLOC
 #include "wcnss_prealloc.h"
 #endif
@@ -46,21 +42,6 @@
 static int has_48mhz_xo = WCNSS_CONFIG_UNSPECIFIED;
 module_param(has_48mhz_xo, int, S_IWUSR | S_IRUGO);
 MODULE_PARM_DESC(has_48mhz_xo, "Is an external 48 MHz XO present");
-
-static DEFINE_SPINLOCK(reg_spinlock);
-
-#define MSM_RIVA_PHYS			0x03204000
-#define MSM_PRONTO_PHYS			0xfb21b000
-
-#define RIVA_SPARE_OFFSET		0x0b4
-#define RIVA_SUSPEND_BIT		BIT(24)
-
-#define MSM_RIVA_CCU_BASE			0x03200800
-
-#define CCU_INVALID_ADDR_OFFSET		0x100
-#define CCU_LAST_ADDR0_OFFSET		0x104
-#define CCU_LAST_ADDR1_OFFSET		0x108
-#define CCU_LAST_ADDR2_OFFSET		0x10c
 
 #define WCNSS_CTRL_CHANNEL			"WCNSS_CTRL"
 #define WCNSS_MAX_FRAME_SIZE		500
@@ -108,7 +89,6 @@ static struct {
 	struct work_struct wcnssctrl_version_work;
 	struct work_struct wcnssctrl_rx_work;
 	struct wake_lock wcnss_wake_lock;
-	void __iomem *msm_wcnss_base;
 } *penv = NULL;
 
 static ssize_t wcnss_serial_number_show(struct device *dev,
@@ -180,50 +160,15 @@ static ssize_t wcnss_version_show(struct device *dev,
 static DEVICE_ATTR(wcnss_version, S_IRUSR,
 		wcnss_version_show, NULL);
 
-/* wcnss_reset_intr() is invoked when host drivers fails to
- * communicate with WCNSS over SMD; so logging these registers
- * helps to know WCNSS failure reason */
-static void wcnss_log_ccpu_regs(void)
-{
-	void __iomem *ccu_base;
-	void __iomem *ccu_reg;
-	u32 reg = 0;
-
-	ccu_base = ioremap(MSM_RIVA_CCU_BASE, SZ_512);
-	if (!ccu_base) {
-		pr_err("%s: ioremap WCNSS CCU reg failed\n", __func__);
-		return;
-	}
-
-	ccu_reg = ccu_base + CCU_INVALID_ADDR_OFFSET;
-	reg = readl_relaxed(ccu_reg);
-	pr_info("%s: CCU_CCPU_INVALID_ADDR %08x\n", __func__, reg);
-
-	ccu_reg = ccu_base + CCU_LAST_ADDR0_OFFSET;
-	reg = readl_relaxed(ccu_reg);
-	pr_info("%s: CCU_CCPU_LAST_ADDR0 %08x\n", __func__, reg);
-
-	ccu_reg = ccu_base + CCU_LAST_ADDR1_OFFSET;
-	reg = readl_relaxed(ccu_reg);
-	pr_info("%s: CCU_CCPU_LAST_ADDR1 %08x\n", __func__, reg);
-
-	ccu_reg = ccu_base + CCU_LAST_ADDR2_OFFSET;
-	reg = readl_relaxed(ccu_reg);
-	pr_info("%s: CCU_CCPU_LAST_ADDR2 %08x\n", __func__, reg);
-
-	iounmap(ccu_base);
-}
-
 /* interface to reset Riva by sending the reset interrupt */
 void wcnss_reset_intr(void)
 {
-	if (wcnss_hardware_type() != WCNSS_RIVA_HW) {
-		pr_err("%s: reset interrupt not supported\n", __func__);
-		return;
-	}
-	wcnss_log_ccpu_regs();
+	if (wcnss_hardware_type() == WCNSS_RIVA_HW) {
 		wmb();
 		__raw_writel(1 << 24, MSM_APCS_GCC_BASE + 0x8);
+	} else {
+		pr_err("%s: reset interrupt not supported\n", __func__);
+	}
 }
 EXPORT_SYMBOL(wcnss_reset_intr);
 
@@ -251,10 +196,10 @@ static int wcnss_create_sysfs(struct device *dev)
 remove_thermal:
 	device_remove_file(dev, &dev_attr_thermal_mitigation);
 remove_serial:
-		device_remove_file(dev, &dev_attr_serial_number);
+	device_remove_file(dev, &dev_attr_serial_number);
 
-		return ret;
-	}
+	return ret;
+}
 
 static void wcnss_remove_sysfs(struct device *dev)
 {
@@ -542,71 +487,6 @@ unsigned int wcnss_get_serial_number(void)
 }
 EXPORT_SYMBOL(wcnss_get_serial_number);
 
-static int enable_wcnss_suspend_notify;
-
-static int enable_wcnss_suspend_notify_set(const char *val,
-				struct kernel_param *kp)
-{
-	int ret;
-
-	ret = param_set_int(val, kp);
-	if (ret)
-		return ret;
-
-	if (enable_wcnss_suspend_notify)
-		pr_debug("Suspend notification activated for wcnss\n");
-
-	return 0;
-}
-module_param_call(enable_wcnss_suspend_notify, enable_wcnss_suspend_notify_set,
-		param_get_int, &enable_wcnss_suspend_notify, S_IRUGO | S_IWUSR);
-
-
-void wcnss_suspend_notify(void)
-{
-	void __iomem *pmu_spare_reg;
-	u32 reg = 0;
-	unsigned long flags;
-
-	if (!enable_wcnss_suspend_notify)
-		return;
-
-	if (wcnss_hardware_type() == WCNSS_PRONTO_HW)
-		return;
-
-	/* For Riva */
-	pmu_spare_reg = penv->msm_wcnss_base + RIVA_SPARE_OFFSET;
-	spin_lock_irqsave(&reg_spinlock, flags);
-	reg = readl_relaxed(pmu_spare_reg);
-	reg |= RIVA_SUSPEND_BIT;
-	writel_relaxed(reg, pmu_spare_reg);
-	spin_unlock_irqrestore(&reg_spinlock, flags);
-}
-EXPORT_SYMBOL(wcnss_suspend_notify);
-
-void wcnss_resume_notify(void)
-{
-	void __iomem *pmu_spare_reg;
-	u32 reg = 0;
-	unsigned long flags;
-
-	if (!enable_wcnss_suspend_notify)
-		return;
-
-	if (wcnss_hardware_type() == WCNSS_PRONTO_HW)
-		return;
-
-	/* For Riva */
-	pmu_spare_reg = penv->msm_wcnss_base + RIVA_SPARE_OFFSET;
-
-	spin_lock_irqsave(&reg_spinlock, flags);
-	reg = readl_relaxed(pmu_spare_reg);
-	reg &= ~RIVA_SUSPEND_BIT;
-	writel_relaxed(reg, pmu_spare_reg);
-	spin_unlock_irqrestore(&reg_spinlock, flags);
-}
-EXPORT_SYMBOL(wcnss_resume_notify);
-
 static int wcnss_wlan_suspend(struct device *dev)
 {
 	if (penv && dev && (dev == &penv->pdev->dev) &&
@@ -730,8 +610,6 @@ wcnss_trigger_config(struct platform_device *pdev)
 {
 	int ret;
 	struct qcom_wcnss_opts *pdata;
-	unsigned long wcnss_phys_addr;
-	int size = 0;
 	int has_pronto_hw = of_property_read_bool(pdev->dev.of_node,
 									"qcom,has_pronto_hw");
 
@@ -749,7 +627,7 @@ wcnss_trigger_config(struct platform_device *pdev)
 			penv->wcnss_hw_type = WCNSS_PRONTO_HW;
 		} else {
 			penv->wcnss_hw_type = WCNSS_RIVA_HW;
-		has_48mhz_xo = pdata->has_48mhz_xo;
+			has_48mhz_xo = pdata->has_48mhz_xo;
 		}
 	}
 	penv->wlan_config.use_48mhz_xo = has_48mhz_xo;
@@ -762,13 +640,13 @@ wcnss_trigger_config(struct platform_device *pdev)
 		penv->gpios_5wire = platform_get_resource_byname(pdev,
 					IORESOURCE_IO, "wcnss_gpios_5wire");
 
-	/* allocate 5-wire GPIO resources */
-	if (!penv->gpios_5wire) {
-		dev_err(&pdev->dev, "insufficient IO resources\n");
-		ret = -ENOENT;
-		goto fail_gpio_res;
-	}
-	ret = wcnss_gpios_config(penv->gpios_5wire, true);
+		/* allocate 5-wire GPIO resources */
+		if (!penv->gpios_5wire) {
+			dev_err(&pdev->dev, "insufficient IO resources\n");
+			ret = -ENOENT;
+			goto fail_gpio_res;
+		}
+		ret = wcnss_gpios_config(penv->gpios_5wire, true);
 	} else
 		ret = wcnss_pronto_gpios_config(&pdev->dev, true);
 
@@ -786,7 +664,7 @@ wcnss_trigger_config(struct platform_device *pdev)
 	}
 
 	/* trigger initialization of the WCNSS */
-	penv->pil = pil_get(WCNSS_PIL_DEVICE); // PARKJH_TEMP, build error fix
+	penv->pil = pil_get(WCNSS_PIL_DEVICE);
 	if (IS_ERR(penv->pil)) {
 		dev_err(&pdev->dev, "Peripheral Loader failed on WCNSS.\n");
 		ret = PTR_ERR(penv->pil);
@@ -812,36 +690,19 @@ wcnss_trigger_config(struct platform_device *pdev)
 
 	wake_lock_init(&penv->wcnss_wake_lock, WAKE_LOCK_SUSPEND, "wcnss");
 
-	if (wcnss_hardware_type() == WCNSS_PRONTO_HW) {
-		size = 0x3000;
-		wcnss_phys_addr = MSM_PRONTO_PHYS;
-	} else {
-		wcnss_phys_addr = MSM_RIVA_PHYS;
-		size = SZ_256;
-	}
-
-	penv->msm_wcnss_base = ioremap(wcnss_phys_addr, size);
-	if (!penv->msm_wcnss_base) {
-		ret = -ENOMEM;
-		pr_err("%s: ioremap wcnss physical failed\n", __func__);
-		goto fail_wake;
-	}
-
 	return 0;
 
-fail_wake:
-	wake_lock_destroy(&penv->wcnss_wake_lock);
 fail_res:
 	if (penv->pil)
-		pil_put(penv->pil); // PARKJH_TEMP, build error fix
+		pil_put(penv->pil);
 fail_pil:
 	wcnss_wlan_power(&pdev->dev, &penv->wlan_config,
 				WCNSS_WLAN_SWITCH_OFF);
 fail_power:
 	if (has_pronto_hw)
-		wcnss_pronto_gpios_config(&pdev->dev, false);
+		ret = wcnss_pronto_gpios_config(&pdev->dev, false);
 	else
-	wcnss_gpios_config(penv->gpios_5wire, false);
+		wcnss_gpios_config(penv->gpios_5wire, false);
 fail_gpio_res:
 	kfree(penv);
 	penv = NULL;
@@ -979,7 +840,7 @@ static void __exit wcnss_wlan_exit(void)
 {
 	if (penv) {
 		if (penv->pil)
-			pil_put(penv->pil); // PARKJH_TEMP, build error fix
+			pil_put(penv->pil);
 
 
 		kfree(penv);
