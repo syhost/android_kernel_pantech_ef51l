@@ -652,8 +652,6 @@ static void ksb_usb_disconnect(struct usb_interface *ifc)
 	wake_up(&ksb->ks_wait_q);
 	cancel_work_sync(&ksb->to_mdm_work);
 
-	misc_deregister(ksb->fs_dev);
-
 	usb_kill_anchored_urbs(&ksb->submitted);
 
 	spin_lock_irqsave(&ksb->lock, flags);
@@ -671,6 +669,7 @@ static void ksb_usb_disconnect(struct usb_interface *ifc)
 	}
 	spin_unlock_irqrestore(&ksb->lock, flags);
 
+	misc_deregister(ksb->fs_dev);
 	ifc->needs_remote_wakeup = 0;
 	usb_put_dev(ksb->udev);
 	ksb->ifc = NULL;
