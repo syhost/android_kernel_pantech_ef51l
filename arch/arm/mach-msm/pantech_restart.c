@@ -259,9 +259,8 @@ static struct kobject *pantech_restart_kobj;
 int __init pantech_restart_init(void)
 {
     int retval;
-#if !defined(CONFIG_QC_ABNORMAL_DEBUG_CODE) || defined(CONFIG_PANTECH_USER_BUILD)
     void *phy_log_buf;
-#endif
+
     pantech_restart_kobj = kobject_create_and_add("pantech_restart", kernel_kobj);
     if (!pantech_restart_kobj)
         return -ENOMEM;
@@ -271,12 +270,8 @@ int __init pantech_restart_init(void)
 
     atomic_notifier_chain_register(&panic_notifier_list, &pantech_restart_blk);
 
-#if !defined(CONFIG_QC_ABNORMAL_DEBUG_CODE) || defined(CONFIG_PANTECH_USER_BUILD)
     phy_log_buf = (void*)virt_to_phys((void*)get_log_buf_addr());
     writel(phy_log_buf, MSM_IMEM_BASE + 0x65C + 0xC);
-#else
-    writel(0x88b00000, MSM_IMEM_BASE + 0x65C + 0xC);
-#endif
 
     dump_mode_init();
     

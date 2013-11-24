@@ -148,19 +148,10 @@ void __init setup_sched_clock(u32 (*read)(void), int bits, unsigned long rate)
 	pr_debug("Registered %pF as sched_clock source\n", read);
 }
 
-#if defined(CONFIG_QC_ABNORMAL_DEBUG_CODE) && !defined(CONFIG_PANTECH_USER_BUILD)
-static atomic64_t last_ns;
-#endif
 unsigned long long notrace sched_clock(void)
 {
 	u32 cyc = read_sched_clock();
-#if defined(CONFIG_QC_ABNORMAL_DEBUG_CODE) && !defined(CONFIG_PANTECH_USER_BUILD)
-	u64 local = cyc_to_sched_clock(cyc, sched_clock_mask);
-	atomic64_set(&last_ns, local);
-	return local;
-#else
 	return cyc_to_sched_clock(cyc, sched_clock_mask);
-#endif
 }
 
 void __init sched_clock_postinit(void)

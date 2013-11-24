@@ -44,10 +44,6 @@ int sysctl_oom_kill_allocating_task;
 int sysctl_oom_dump_tasks = 1;
 static DEFINE_SPINLOCK(zone_scan_lock);
 
-#if defined(CONFIG_PANTECH_MORE_DEBUGGING_INFO_ON_KERNEL) && !defined(CONFIG_PANTECH_USER_BUILD)
-extern void show_meminfo(void);
-#endif
-
 /*
  * compare_swap_oom_score_adj() - compare and swap current's oom_score_adj
  * @old_val: old oom_score_adj for compare
@@ -393,44 +389,6 @@ static struct task_struct *select_bad_process(unsigned int *ppoints,
  *
  * Call with tasklist_lock read-locked.
  */
-#define K(x) ((x) << (PAGE_SHIFT-10))
-#if defined(CONFIG_PANTECH_MORE_DEBUGGING_INFO_ON_KERNEL) && !defined(CONFIG_PANTECH_USER_BUILD)
-static void dump_tasks(const struct mem_cgroup *memcg, const nodemask_t *nodemask)
-{
-	struct task_struct *p;
-	struct task_struct *task;
-	unsigned long vm = 0;
-	unsigned long rss = 0;
-	unsigned long percent = 0;
-	
-	pr_info("[ pid ]   uid  tgid total_vm      rss cpu oom_adj oom_socre_adj  suspect   name\n");
-	for_each_process(p) {
-		if (oom_unkillable_task(p, memcg, nodemask))
-			continue;
-
-		task = find_lock_task_mm(p);
-		if (!task) {
-			/*
-			 * This is a kthread or all of p's threads have already
-			 * detached their mm's.  There's no need to report
-			 * them; they can't be oom killed anyway.
-			 */
-			continue;
-		}
-		vm = task->mm->total_vm;
-		rss = get_mm_rss(task->mm);
-		percent = rss * 100 / vm;
-
-		pr_info("[%5d] %5d %5d %10lu %8lu %3u     %3d        %5d %s%3lu%%    %s\n",
-			task->pid, task_uid(task), task->tgid,
-			K(task->mm->total_vm), K(get_mm_rss(task->mm)),
-			task_cpu(task), task->signal->oom_adj,
-			task->signal->oom_score_adj,
-			(K(vm) > 400000) && (percent > 25) ? "S1-" : "   ", percent, task->comm);
-		task_unlock(task);
-	}
-}
-#else
 static void dump_tasks(const struct mem_cgroup *memcg, const nodemask_t *nodemask)
 {
 	struct task_struct *p;
@@ -459,7 +417,6 @@ static void dump_tasks(const struct mem_cgroup *memcg, const nodemask_t *nodemas
 		task_unlock(task);
 	}
 }
-#endif
 
 static void dump_header(struct task_struct *p, gfp_t gfp_mask, int order,
 			struct mem_cgroup *memcg, const nodemask_t *nodemask)
@@ -472,18 +429,13 @@ static void dump_header(struct task_struct *p, gfp_t gfp_mask, int order,
 	cpuset_print_task_mems_allowed(current);
 	task_unlock(current);
 	dump_stack();
-#if defined(CONFIG_PANTECH_MORE_DEBUGGING_INFO_ON_KERNEL) && !defined(CONFIG_PANTECH_USER_BUILD)	
-	show_meminfo();
-#endif
 	mem_cgroup_print_oom_info(memcg, p);
 	show_mem(SHOW_MEM_FILTER_NODES);
 	if (sysctl_oom_dump_tasks)
 		dump_tasks(memcg, nodemask);
 }
 
-//#ifndef CONFIG_PANTECH_MORE_DEBUGGING_INFO_ON_KERNEL
-//#define K(x) ((x) << (PAGE_SHIFT-10))
-//#endif
+#define K(x) ((x) << (PAGE_SHIFT-10))
 static void oom_kill_process(struct task_struct *p, gfp_t gfp_mask, int order,
 			     unsigned int points, unsigned long totalpages,
 			     struct mem_cgroup *memcg, nodemask_t *nodemask,

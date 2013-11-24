@@ -15,39 +15,7 @@
 #include <linux/radix-tree.h>
 #include <linux/bitmap.h>
 
-#if defined(CONFIG_PANTECH_DEBUG) && !defined(CONFIG_PANTECH_USER_BUILD)
-#ifdef CONFIG_PANTECH_DEBUG_IRQ_LOG  //p14291_121102
-#include <mach/pantech_apanic.h>
-#endif
-#endif
-
 #include "internals.h"
-
-#if defined(CONFIG_QC_ABNORMAL_DEBUG_CODE) && !defined(CONFIG_PANTECH_USER_BUILD)
-#include <linux/sched.h>
-
-struct irqlog {
-	unsigned long ulTick;
-	unsigned long ulMsec;
-	unsigned int unPid;
-	unsigned int reserved;
-	unsigned char ucComm[16];
-};
-
-#define MAX_KERNEL_IRQ_LOGS (2048)
-//1MB / 4 / sizeofstruct32 / cpu2
-
-struct irqlogwrap {
-	struct irqlog sp[4][MAX_KERNEL_IRQ_LOGS];
-};
-static struct irqlogwrap *pIrqLogData;
-static int nNextLogIdx[4] = {0,0,0,0}; //MAX QUAD
-
-void enable_uncache_irq_log(char * start, int size) {
-	pIrqLogData = (struct irqlogwrap*)start;
-}
-EXPORT_SYMBOL(enable_uncache_irq_log);
-#endif
 
 /*
  * lockdep: we want to handle all irq_desc locks as a single lock-class:
@@ -340,66 +308,10 @@ static int irq_expand_nr_irqs(unsigned int nr)
 int generic_handle_irq(unsigned int irq)
 {
 	struct irq_desc *desc = irq_to_desc(irq);
-	
-#if defined(CONFIG_QC_ABNORMAL_DEBUG_CODE) && !defined(CONFIG_PANTECH_USER_BUILD)
-	unsigned long long t;
-	int cpu, i;
-	struct irqlog *p;
-#endif
 
-#if defined(CONFIG_PANTECH_DEBUG) && !defined(CONFIG_PANTECH_USER_BUILD)
-#ifdef CONFIG_PANTECH_DEBUG_IRQ_LOG  //p14291_121102
-	int cpu_temp = smp_processor_id();
-	unsigned long long start_time = cpu_clock(cpu_temp);
-#endif
-#endif
-	
 	if (!desc)
 		return -EINVAL;
-	
-#if defined(CONFIG_QC_ABNORMAL_DEBUG_CODE) && !defined(CONFIG_PANTECH_USER_BUILD)
-		if (pIrqLogData != NULL)
-		{
-			cpu = smp_processor_id();
-			i = nNextLogIdx[cpu];
-			p = &(pIrqLogData->sp[cpu][i]);
-			t = sched_clock();
-			p->ulMsec = do_div(t, 1000000000) / 1000;
-			p->ulTick = (unsigned long) t;
-			p->unPid = irq;
-			p->reserved = 0;
-			snprintf(p->ucComm, 16, "IRQ %d enter", irq);
-			nNextLogIdx[cpu] = ++i & (MAX_KERNEL_IRQ_LOGS - 1);
-		}
-#endif
-
 	generic_handle_irq_desc(irq, desc);
-
-#if defined(CONFIG_QC_ABNORMAL_DEBUG_CODE) && !defined(CONFIG_PANTECH_USER_BUILD)
-	if (pIrqLogData != NULL)
-	{
-		cpu = smp_processor_id();
-		i = nNextLogIdx[cpu];
-		p = &(pIrqLogData->sp[cpu][i]);
-		t = sched_clock();
-		p->ulMsec = do_div(t, 1000000000) / 1000;
-		p->ulTick = (unsigned long) t;
-		p->unPid = irq;
-		p->reserved = 0;
-		snprintf(p->ucComm, 16, "IRQ %d exit", irq);
-		nNextLogIdx[cpu] = ++i & (MAX_KERNEL_IRQ_LOGS - 1);
-	}
-#endif
-
-#if defined(CONFIG_PANTECH_DEBUG) && !defined(CONFIG_PANTECH_USER_BUILD)
-#ifdef CONFIG_PANTECH_DEBUG_IRQ_LOG  //p14291_121102
-	if (desc->action)
-		pantech_debug_irq_sched_log(irq, (void *)desc->action->handler,	irqs_disabled(), start_time);
-	else
-		pantech_debug_irq_sched_log(irq, (void *)desc->handle_irq,irqs_disabled(), start_time);
-#endif
-#endif
-	
 	return 0;
 }
 EXPORT_SYMBOL_GPL(generic_handle_irq);

@@ -154,20 +154,6 @@ static int log_buf_len = __LOG_BUF_LEN;
 static unsigned logged_chars; /* Number of chars produced since last read+clear operation */
 static int saved_console_loglevel = -1;
 
-#if defined(CONFIG_QC_ABNORMAL_DEBUG_CODE) && !defined(CONFIG_PANTECH_USER_BUILD)
-void enable_uncache_log_buf(char * new_addr, int new_size) {
-	int i = 0;
-	while (i <= log_end) {
-		new_addr[i] = __log_buf[i];
-		i++;
-	}
-	log_buf = new_addr;
-	log_buf_len = new_size;
-	return;
-}
-EXPORT_SYMBOL(enable_uncache_log_buf);
-#endif
-
 #ifdef CONFIG_KEXEC
 /*
  * This appends the listed symbols to /proc/vmcoreinfo

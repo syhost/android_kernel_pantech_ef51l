@@ -41,11 +41,7 @@
 /*-------------------------------------------------------------------------*/
 
 /* fill a qtd, returning how much of the buffer we were able to queue up */
-// P12125 kernel panic debug code->
-#ifndef CONFIG_PANTECH_USER_BUILD
-void dbg_log_event(struct urb *urb, char * event, unsigned extra);
-#endif
-// P12125 kernel panic debug code-<
+
 static int
 qtd_fill(struct ehci_hcd *ehci, struct ehci_qtd *qtd, dma_addr_t buf,
 		  size_t len, int token, int maxpacket)
@@ -639,11 +635,7 @@ qh_urb_transaction (
 		return NULL;
 	list_add_tail (&qtd->qtd_list, head);
 	qtd->urb = urb;
-// P12125 kernel panic debug code->
-#ifndef CONFIG_PANTECH_USER_BUILD
-	dbg_log_event(NULL,"Alloc QTD: ",(int) qtd);
-#endif
-// P12125 kernel panic debug code-<
+
 	token = QTD_STS_ACTIVE;
 	token |= (EHCI_TUNE_CERR << 10);
 	/* for split transactions, SplitXState initialized to zero */
@@ -663,11 +655,6 @@ qh_urb_transaction (
 		if (unlikely (!qtd))
 			goto cleanup;
 		qtd->urb = urb;
-// P12125 kernel panic debug code->
-#ifndef CONFIG_PANTECH_USER_BUILD
-		dbg_log_event(NULL,"alloc SETUP QTD ",(int) qtd);
-#endif
-// P12125 kernel panic debug code-<
 		qtd_prev->hw_next = QTD_NEXT(ehci, qtd->qtd_dma);
 		list_add_tail (&qtd->qtd_list, head);
 
@@ -739,11 +726,6 @@ qh_urb_transaction (
 		if (unlikely (!qtd))
 			goto cleanup;
 		qtd->urb = urb;
-// P12125 kernel panic debug code->
-#ifndef CONFIG_PANTECH_USER_BUILD
-		dbg_log_event(NULL, "Alloc another QTD: ",(int) qtd);
-#endif
-// P12125 kernel panic debug code-<
 		qtd_prev->hw_next = QTD_NEXT(ehci, qtd->qtd_dma);
 		list_add_tail (&qtd->qtd_list, head);
 	}
@@ -1029,11 +1011,7 @@ static void qh_link_async (struct ehci_hcd *ehci, struct ehci_qh *qh)
 
 	head->qh_next.qh = qh;
 	head->hw->hw_next = dma;
-// P12125 kernel panic debug code->
-#ifndef CONFIG_PANTECH_USER_BUILD
-	dbg_log_event(NULL, "linking QH to current QH, cur QH =  ",(int) head);
-#endif
-// P12125 kernel panic debug code-<
+
 	qh_get(qh);
 	qh->xacterrs = 0;
 	qh->qh_state = QH_STATE_LINKED;
@@ -1062,11 +1040,6 @@ static struct ehci_qh *qh_append_tds (
 	qh = (struct ehci_qh *) *ptr;
 	if (unlikely (qh == NULL)) {
 		/* can't sleep here, we have ehci->lock... */
-// P12125 kernel panic debug code->
-#ifndef CONFIG_PANTECH_USER_BUILD
-	dbg_log_event(NULL, "QH does not exisit", 0);
-#endif
-// P12125 kernel panic debug code-<
 		qh = qh_make (ehci, urb, GFP_ATOMIC);
 		*ptr = qh;
 	}
@@ -1100,11 +1073,6 @@ static struct ehci_qh *qh_append_tds (
 			 * tds stay deactivated until we're done, when the
 			 * HC is allowed to fetch the old dummy (4.10.2).
 			 */
-// P12125 kernel panic debug code->
-#ifndef CONFIG_PANTECH_USER_BUILD
-			dbg_log_event(NULL,"adding QTD to QH " ,(int) qh);
-#endif
-// P12125 kernel panic debug code-<
 			token = qtd->hw_token;
 			qtd->hw_token = HALT_BIT(ehci);
 
@@ -1378,21 +1346,12 @@ static void start_unlink_async (struct ehci_hcd *ehci, struct ehci_qh *qh)
 
 	qh->qh_state = QH_STATE_UNLINK;
 	ehci->reclaim = qh = qh_get (qh);
-// P12125 kernel panic debug code->
-#ifndef CONFIG_PANTECH_USER_BUILD
-	dbg_log_event(NULL, "unlink QH ",(int) qh);
-#endif
-// P12125 kernel panic debug code-<
+
 	prev = ehci->async;
 	while (prev->qh_next.qh != qh)
 		prev = prev->qh_next.qh;
 
 	prev->hw->hw_next = qh->hw->hw_next;
-// P12125 kernel panic debug code->
-#ifndef CONFIG_PANTECH_USER_BUILD
-	dbg_log_event(NULL, "unlink QH prev->hw->hw_next",(int) prev->hw->hw_next);
-#endif
-// P12125 kernel panic debug code-<
 	prev->qh_next = qh->qh_next;
 	if (ehci->qh_scan_next == qh)
 		ehci->qh_scan_next = qh->qh_next.qh;

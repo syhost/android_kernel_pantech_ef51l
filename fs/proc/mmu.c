@@ -21,13 +21,6 @@ void get_vmalloc_info(struct vmalloc_info *vmi)
 	unsigned long prev_end;
 
 	vmi->used = 0;
-#if defined(CONFIG_PANTECH_MORE_DEBUGGING_INFO_ON_KERNEL) && !defined(CONFIG_PANTECH_USER_BUILD)
-	vmi->ioremap = 0;
-	vmi->alloc = 0;
-	vmi->map = 0;
-	vmi->usermap = 0;
-	vmi->vpages = 0;
-#endif
 
 	if (!vmlist) {
 		vmi->largest_chunk = VMALLOC_TOTAL;
@@ -51,18 +44,6 @@ void get_vmalloc_info(struct vmalloc_info *vmi)
 				break;
 
 			vmi->used += vma->size;
-#if defined(CONFIG_PANTECH_MORE_DEBUGGING_INFO_ON_KERNEL) && !defined(CONFIG_PANTECH_USER_BUILD)
-			if (vma->flags & VM_IOREMAP)
-				vmi->ioremap += vma->size;
-			if (vma->flags & VM_ALLOC)
-				vmi->alloc += vma->size;
-			if (vma->flags & VM_MAP)
-				vmi->map += vma->size;
-			if (vma->flags & VM_USERMAP)
-				vmi->usermap += vma->size;
-			if (vma->flags & VM_VPAGES)
-				vmi->vpages += vma->size;
-#endif
 
 			free_area_size = addr - prev_end;
 			if (vmi->largest_chunk < free_area_size)

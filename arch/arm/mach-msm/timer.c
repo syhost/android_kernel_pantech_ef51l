@@ -446,9 +446,6 @@ uint32_t msm_timer_get_sclk_ticks(void)
 
 	return t1;
 }
-#if defined(CONFIG_QC_ABNORMAL_DEBUG_CODE) && !defined(CONFIG_PANTECH_USER_BUILD)
-EXPORT_SYMBOL(msm_timer_get_sclk_ticks); //ALRAN
-#endif
 
 static uint32_t msm_timer_do_sync_to_sclk(
 	void (*time_start)(struct msm_timer_sync_data_t *data),
