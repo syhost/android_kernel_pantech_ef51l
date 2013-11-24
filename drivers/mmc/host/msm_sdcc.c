@@ -1377,17 +1377,6 @@ msmsdcc_start_data(struct msmsdcc_host *host, struct mmc_data *data,
 static void
 msmsdcc_start_command(struct msmsdcc_host *host, struct mmc_command *cmd, u32 c)
 {
-#ifndef CONFIG_MMC_DEBUG_FOR_HYNIX
-	//p14291_test
-	if(host->mmc->card && host->mmc->card->type == MMC_TYPE_MMC && (cmd->opcode == 24 ||cmd->opcode == 25))
-	{
-	//	if(mmc_test_flag == 0x12127878)
-		//	cmd->arg = 0;
-			
-		if(cmd->arg >=0 && cmd->arg <= 16)
-			panic("Invalid sector address for writting to MMC..!!!\n");
-	}
-#endif
 	msmsdcc_start_command_deferred(host, cmd, &c);
 	msmsdcc_start_command_exec(host, cmd->arg, c);
 }
@@ -2205,11 +2194,7 @@ msmsdcc_request(struct mmc_host *mmc, struct mmc_request *mrq)
 	if ((mmc->card) && (mmc->card->quirks & MMC_QUIRK_INAND_DATA_TIMEOUT))
 		host->curr.req_tout_ms = 20000;
 	else
-#ifdef CONFIG_MMC_DEBUG_FOR_HYNIX /* To increase the request timeout value. (youngkyu.jeon@skhynix.com) */
-		host->curr.req_tout_ms = 40000;
-#else
 		host->curr.req_tout_ms = MSM_MMC_REQ_TIMEOUT;
-#endif
 	/*
 	 * Kick the software request timeout timer here with the timeout
 	 * value identified above

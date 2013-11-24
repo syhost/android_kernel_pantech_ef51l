@@ -470,14 +470,7 @@ static int mmc_blk_ioctl_cmd(struct block_device *bdev,
 	md = mmc_blk_get(bdev->bd_disk);
 	if (!md) {
 		err = -EINVAL;
-		/* [kernel patch] mmc: card: Avoid null pointer dereference (youngkyu.jeon@skhynix.com) */
-
-#ifdef CONFIG_MMC_DEBUG_FOR_HYNIX
-		goto cmd_err;
-#else
 		goto cmd_done;
-#endif 
-		/* End of [kernel patch] */
 	}
 
 	card = md->queue.card;
@@ -576,10 +569,6 @@ cmd_rel_host:
 
 cmd_done:
 	mmc_blk_put(md);
-
-#ifdef CONFIG_MMC_DEBUG_FOR_HYNIX
-cmd_err: /* [kernel patch] mmc: card: Avoid null pointer dereference (youngkyu.jeon@skhynix.com) */
-#endif
 	kfree(idata->buf);
 	kfree(idata);
 	return err;
@@ -1380,15 +1369,6 @@ static void mmc_blk_rw_rq_prep(struct mmc_queue_req *mqrq,
 
 	mmc_set_data_timeout(&brq->data, card);
 
-#ifdef CONFIG_MMC_DEBUG_FOR_HYNIX
-	/* MMC_DIRECT_CMD_MODE youngkyu.jeon@skhynix.com */
-	if ((md->flags & MMC_BLK_CMD23) &&
-	    mmc_op_multi(brq->cmd.opcode) &&
-	    (card->quirks & MMC_QUIRK_BLK_NO_CMD23)) {
-		brq->data.timeout_ns = 200000000;
-		brq->data.timeout_clks = card->host->ios.clock * 40; /* 40s */
-	}
-#endif
 	brq->data.sg = mqrq->sg;
 	brq->data.sg_len = mmc_queue_map_sg(mq, mqrq);
 

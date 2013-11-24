@@ -30,11 +30,6 @@ module_param(fail_request, charp, 0);
 
 #endif /* CONFIG_FAIL_MMC_REQUEST */
 
-/* Feature for MMC vendor command tool. (youngkyu.jeon@skhynix.com) */
-#ifdef CONFIG_MMC_DEBUG_FOR_HYNIX
-#define MMC_DIRECT_CMD_MODE
-#endif
-
 /* The debugfs functions are optimized away when CONFIG_DEBUG_FS isn't set. */
 static int mmc_ios_show(struct seq_file *s, void *data)
 {
@@ -191,97 +186,6 @@ static int mmc_clock_opt_set(void *data, u64 val)
 DEFINE_SIMPLE_ATTRIBUTE(mmc_clock_fops, mmc_clock_opt_get, mmc_clock_opt_set,
 	"%llu\n");
 
-
-#ifdef MMC_DIRECT_CMD_MODE /* youngkyu.jeon@skhynix.com */
-
-static int mmc_default_mode_get(void *data, u64 *val)
-{
-	struct mmc_host *host = data;
-
-	host = host;
-	*val = 0;
-
-	return 0;
-}
-
-static int mmc_default_mode_set(void *data, u64 val)
-{
-	struct mmc_host *host = data;
-
-	/* Only value 1 is allowed */
-	if (val != 1)
-		return -EINVAL;
-
-	mmc_claim_host(host);
-	mmc_power_off(host);
-	mmc_power_up(host);
-	mmc_release_host(host);
-
-	return 0;
-}
-
-DEFINE_SIMPLE_ATTRIBUTE(mmc_default_mode_fops, mmc_default_mode_get, mmc_default_mode_set,
-	"%llu\n");
-
-
-static int mmc_busmode_get(void *data, u64 *val)
-{
-	struct mmc_host *host = data;
-
-	*val = host->ios.bus_mode;
-
-	return 0;
-}
-
-static int mmc_busmode_set(void *data, u64 val)
-{
-	struct mmc_host *host = data;
-
-	/* Check if value is valid */
-	if (val != MMC_BUSMODE_OPENDRAIN && val != MMC_BUSMODE_PUSHPULL)
-		return -EINVAL;
-
-	mmc_claim_host(host);
-	mmc_set_bus_mode(host, (unsigned int)val);
-	mmc_release_host(host);
-
-	return 0;
-}
-
-DEFINE_SIMPLE_ATTRIBUTE(mmc_busmode_fops, mmc_busmode_get, mmc_busmode_set,
-	"%llu\n");
-
-
-static int mmc_buswidth_get(void *data, u64 *val)
-{
-	struct mmc_host *host = data;
-
-	*val = host->ios.bus_width;
-
-	return 0;
-}
-
-static int mmc_buswidth_set(void *data, u64 val)
-{
-	struct mmc_host *host = data;
-
-	/* Check if value is valid */
-	if (val != MMC_BUS_WIDTH_1 && val != MMC_BUS_WIDTH_4 && val !=MMC_BUS_WIDTH_8)
-		return -EINVAL;
-
-	mmc_claim_host(host);
-	mmc_set_bus_width(host, (unsigned int)val);
-	mmc_release_host(host);
-
-	return 0;
-}
-
-DEFINE_SIMPLE_ATTRIBUTE(mmc_buswidth_fops, mmc_buswidth_get, mmc_buswidth_set,
-	"%llu\n");
-
-#endif /* MMC_DIRECT_CMD_MODE */
-
-
 void mmc_add_host_debugfs(struct mmc_host *host)
 {
 	struct dentry *root;
@@ -318,20 +222,6 @@ void mmc_add_host_debugfs(struct mmc_host *host)
 					     &host->fail_mmc_request)))
 		goto err_node;
 #endif
-
-#ifdef MMC_DIRECT_CMD_MODE /* youngkyu.jeon@skhynix.com */
-	if (!debugfs_create_file("default_mode", S_IRUSR | S_IWUSR, root, host,
-			&mmc_default_mode_fops))
-		goto err_node;
-
-	if (!debugfs_create_file("busmode", S_IRUSR | S_IWUSR, root, host,
-			&mmc_busmode_fops))
-		goto err_node;
-
-	if (!debugfs_create_file("buswidth", S_IRUSR | S_IWUSR, root, host,
-			&mmc_buswidth_fops))
-		goto err_node;
-#endif /* MMC_DIRECT_CMD_MODE */
 	return;
 
 err_node:
@@ -364,47 +254,6 @@ static int mmc_dbg_card_status_get(void *data, u64 *val)
 }
 DEFINE_SIMPLE_ATTRIBUTE(mmc_dbg_card_status_fops, mmc_dbg_card_status_get,
 		NULL, "%08llx\n");
-
-
-#ifdef MMC_DIRECT_CMD_MODE /* youngkyu.jeon@skhynix.com */
-
-static int mmc_dbg_card_open_ended_get(void *data, u64 *val)
-{
-	struct mmc_card	*card = data;
-
-	mmc_claim_host(card->host);
-	*val = (card->quirks & MMC_QUIRK_BLK_NO_CMD23) ? 1 : 0 ;
-	mmc_release_host(card->host);
-
-	return 0;
-}
-
-static int mmc_dbg_card_open_ended_set(void *data, u64 val)
-{
-	struct mmc_card	*card = data;
-
-	/* Check if value is valid */
-	if (val != 1 && val != 0)
-		return -EINVAL;
-
-	mmc_claim_host(card->host);
-	if(val) {
-		card->quirks |= MMC_QUIRK_BLK_NO_CMD23;
-	}
-	else {
-		card->quirks &= ~MMC_QUIRK_BLK_NO_CMD23;
-	}
-	mmc_release_host(card->host);
-
-	return 0;
-}
-
-
-DEFINE_SIMPLE_ATTRIBUTE(mmc_dbg_card_open_ended_fops, mmc_dbg_card_open_ended_get,
-		mmc_dbg_card_open_ended_set, "%llu\n");
-
-#endif /* MMC_DIRECT_CMD_MODE */
-
 
 #define EXT_CSD_STR_LEN 1025
 
@@ -666,13 +515,6 @@ void mmc_add_card_debugfs(struct mmc_card *card)
 		if (!debugfs_create_file("ext_csd", S_IRUSR, root, card,
 					&mmc_dbg_ext_csd_fops))
 			goto err;
-
-#ifdef MMC_DIRECT_CMD_MODE /* youngkyu.jeon@skhynix.com */
-	if (mmc_card_mmc(card))
-		if (!debugfs_create_file("open_ended", S_IRUSR | S_IWUSR, root, card,
-					&mmc_dbg_card_open_ended_fops))
-			goto err;
-#endif /* MMC_DIRECT_CMD_MODE */
 
 	if (mmc_card_mmc(card) && (card->ext_csd.rev >= 6) &&
 	    (card->host->caps2 & MMC_CAP2_PACKED_WR))
