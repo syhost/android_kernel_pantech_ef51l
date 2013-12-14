@@ -199,6 +199,7 @@ static int __init mipi_video_renesas_fhd_init(void)
 
 	pinfo.bl_min = 1;
 	pinfo.fb_num = 2;
+	pinfo.lcd.blt_ctrl = 1;
 #if defined(LCD_USED_MPIP_860MBPS)
    	pinfo.clk_rate = 860000000;
 #elif defined (LCD_USED_MPIP_872MBPS)
