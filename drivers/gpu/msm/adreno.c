@@ -1679,6 +1679,10 @@ adreno_dump_and_recover(struct kgsl_device *device)
 		kgsl_device_snapshot(device, 1);
 
 		result = adreno_recover_hang(device, &rec_data);
+
+		//Temporary added for debugging of gpu-hang
+		BUG_ON(true);
+		
 		adreno_destroy_recovery_data(&rec_data);
 		if (result) {
 			kgsl_pwrctrl_set_state(device, KGSL_STATE_HUNG);
@@ -2125,29 +2129,25 @@ static void adreno_next_event(struct kgsl_device *device,
 	unsigned int context_id = _get_context_id(event->context);
 	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
 
+	/* If the context was destroyed for some reason then just leave */
+	if (context_id == KGSL_CONTEXT_INVALID)
+		return;
+
 	status = kgsl_check_timestamp(device, event->context, event->timestamp);
 	if (!status) {
 		kgsl_sharedmem_readl(&device->memstore, &enableflag,
 			KGSL_MEMSTORE_OFFSET(context_id, ts_cmp_enable));
-		/*
-		 * Barrier is needed here to make sure the read from memstore
-		 * has posted
-		 */
-
 		mb();
 
 		if (enableflag) {
 			kgsl_sharedmem_readl(&device->memstore, &ref_ts,
 				KGSL_MEMSTORE_OFFSET(context_id,
 					ref_wait_ts));
-
-			/* Make sure the memstore read has posted */
 			mb();
 			if (timestamp_cmp(ref_ts, event->timestamp) >= 0) {
 				kgsl_sharedmem_writel(&device->memstore,
 				KGSL_MEMSTORE_OFFSET(context_id,
 					ref_wait_ts), event->timestamp);
-				/* Make sure the memstore write is posted */
 				wmb();
 			}
 		} else {
@@ -2360,13 +2360,8 @@ static int _check_pending_timestamp(struct kgsl_device *device,
 	if (timestamp_cmp(timestamp, ts_issued) <= 0)
 		return 0;
 
-	if (context && !context->wait_on_invalid_ts) {
-		KGSL_DRV_ERR(device, "Cannot wait for invalid ts <%d:0x%x>, last issued ts <%d:0x%x>\n",
-			context_id, timestamp, context_id, ts_issued);
-
-			/* Only print this message once */
-			context->wait_on_invalid_ts = true;
-	}
+	KGSL_DRV_ERR(device, "Cannot wait for invalid ts <%d:0x%x>, last issued ts <%d:0x%x>\n",
+		context_id, timestamp, context_id, ts_issued);
 
 	return -EINVAL;
 }
@@ -2390,13 +2385,11 @@ static int adreno_waittimestamp(struct kgsl_device *device,
 				unsigned int msecs)
 {
 	static unsigned int io_cnt;
-	struct adreno_context *adreno_ctx = context ? context->devctxt : NULL;
 	struct kgsl_pwrctrl *pwr = &device->pwrctrl;
 	unsigned int context_id = _get_context_id(context);
 	unsigned int prev_reg_val[hang_detect_regs_count];
 	unsigned int time_elapsed = 0;
 	unsigned int wait;
-	int ts_compare = 1;
 	int io, ret = -ETIMEDOUT;
 
 	/* Get out early if the context has already been destroyed */
@@ -2411,14 +2404,8 @@ static int adreno_waittimestamp(struct kgsl_device *device,
 	 * timestamp issued. If it is complain once and return error.
 	 */
 
-	if (adreno_ctx && !(adreno_ctx->flags & CTXT_FLAGS_USER_GENERATED_TS)) {
-		if (_check_pending_timestamp(device, context, timestamp))
-			return -EINVAL;
-
-		/* Reset the invalid timestamp flag on a valid wait */
-		context->wait_on_invalid_ts = false;
-	}
-
+	if (_check_pending_timestamp(device, context, timestamp))
+		return -EINVAL;
 
 	/* Clear the registers used for hang detection */
 	memset(prev_reg_val, 0, sizeof(prev_reg_val));
@@ -2492,30 +2479,6 @@ static int adreno_waittimestamp(struct kgsl_device *device,
 		}
 
 		time_elapsed += wait;
-		/* If user specified timestamps are being used, wait at least
-		 * KGSL_SYNCOBJ_SERVER_TIMEOUT msecs for the user driver to
-		 * issue a IB for a timestamp before checking to see if the
-		 * current timestamp we are waiting for is valid or not
-		 */
-
-		if (ts_compare && (adreno_ctx &&
-			(adreno_ctx->flags & CTXT_FLAGS_USER_GENERATED_TS))) {
-			if (time_elapsed > KGSL_SYNCOBJ_SERVER_TIMEOUT) {
-				ret = _check_pending_timestamp(device, context,
-					timestamp);
-				if (ret)
-					break;
-
-				/* Don't do this check again */
-				ts_compare = 0;
-
-				/*
-				 * Reset the invalid timestamp flag on a valid
-				 * wait
-				 */
-				context->wait_on_invalid_ts = false;
-			}
-		}
 
 		/*
 		 * all subsequent trips through the loop wait the full
