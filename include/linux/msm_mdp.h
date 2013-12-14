@@ -74,6 +74,8 @@
 #define MSMFB_VSYNC_CTRL  _IOW(MSMFB_IOCTL_MAGIC, 161, unsigned int)
 #define MSMFB_OVERLAY_COMMIT      _IOW(MSMFB_IOCTL_MAGIC, 163, unsigned int)
 
+#define MSMFB_BUFFER_SYNC  _IOW(MSMFB_IOCTL_MAGIC, 162, struct mdp_buf_sync)
+
 /* 130124, Get LCD Revision(2 or 3).
  * CONFIG_PANTECH_LCD_GET_LCD_REV is defined in below files.
  * kernel/drivers/video/msm/msm_fb.h
@@ -511,6 +513,14 @@ struct msmfb_mdp_pp {
 	} data;
 };
 
+#define MDP_MAX_FENCE_FD	4
+
+struct mdp_buf_sync {
+	uint32_t flags;
+	uint32_t acq_fen_fd_cnt;
+	int *acq_fen_fd;
+	int *rel_fen_fd;
+};
 struct mdp_page_protection {
 	uint32_t page_protection;
 };
