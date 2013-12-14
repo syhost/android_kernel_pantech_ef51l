@@ -519,6 +519,7 @@ int mdp4_dsi_video_on(struct platform_device *pdev)
 	vctrl->dev = mfd->fbi->dev;
 	vctrl->blt_ctrl = pinfo->lcd.blt_ctrl;
 
+	printk(KERN_INFO "[LCD][DEBUG] %s is started.. \n", __func__);
 	/* mdp clock on */
 	mdp_clk_ctrl(1);
 
@@ -532,10 +533,10 @@ int mdp4_dsi_video_on(struct platform_device *pdev)
 	if (vctrl->base_pipe == NULL) {
 		ptype = mdp4_overlay_format2type(mfd->fb_imgType);
 		if (ptype < 0)
-			printk(KERN_INFO "%s: format2type failed\n", __func__);
+			printk(KERN_INFO "[LCD][DEBUG] %s: format2type failed\n", __func__);
 		pipe = mdp4_overlay_pipe_alloc(ptype, MDP4_MIXER0);
 		if (pipe == NULL) {
-			printk(KERN_INFO "%s: pipe_alloc failed\n", __func__);
+			printk(KERN_INFO "[LCD][DEBUG] %s: pipe_alloc failed\n", __func__);
 			return -EBUSY;
 		}
 		pipe->pipe_used++;
@@ -545,7 +546,7 @@ int mdp4_dsi_video_on(struct platform_device *pdev)
 		mdp4_overlay_panel_mode(pipe->mixer_num, MDP4_PANEL_DSI_VIDEO);
 		ret = mdp4_overlay_format2pipe(pipe);
 		if (ret < 0)
-			printk(KERN_INFO "%s: format2type failed\n", __func__);
+			printk(KERN_INFO "[LCD][DEBUG] %s: format2type failed\n", __func__);
 
 		pipe->ov_blt_addr = 0;
 		pipe->dma_blt_addr = 0;
@@ -690,12 +691,17 @@ int mdp4_dsi_video_off(struct platform_device *pdev)
 	struct msm_fb_data_type *mfd;
 	struct vsycn_ctrl *vctrl;
 	struct mdp4_overlay_pipe *pipe;
+	struct vsync_update *vp;
 	unsigned long flags;
-	int need_wait = 0;
+	int undx, need_wait = 0;
+
+	printk(KERN_INFO "[LCD][DEBUG] %s is started.. \n", __func__);
 
 	mfd = (struct msm_fb_data_type *)platform_get_drvdata(pdev);
 	vctrl = &vsync_ctrl_db[cndx];
 	pipe = vctrl->base_pipe;
+
+	mutex_lock(&mfd->dma->ov_mutex);
 
 	atomic_set(&vctrl->suspend, 1);
 	atomic_set(&vctrl->vsync_resume, 0);
@@ -718,6 +724,21 @@ int mdp4_dsi_video_off(struct platform_device *pdev)
 	MDP_OUTP(MDP_BASE + DSI_VIDEO_BASE, 0);
 
 	dsi_video_enabled = 0;
+
+	if (vctrl->vsync_irq_enabled) {
+		vctrl->vsync_irq_enabled = 0;
+		vsync_irq_disable(INTR_PRIMARY_VSYNC, MDP_PRIM_VSYNC_TERM);
+	}
+
+	undx =  vctrl->update_ndx;
+	vp = &vctrl->vlist[undx];
+	if (vp->update_cnt) {
+		/*
+		 * pipe's iommu will be freed at next overlay play
+		 * and iommu_drop statistic will be increased by one
+		 */
+		vp->update_cnt = 0;     /* empty queue */
+	}
 
 	if (pipe) {
 		/* sanity check, free pipes besides base layer */
@@ -749,6 +770,9 @@ int mdp4_dsi_video_off(struct platform_device *pdev)
 	/* mdp clock off */
 	mdp_clk_ctrl(0);
 	mdp_pipe_ctrl(MDP_OVERLAY0_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
+	mutex_unlock(&mfd->dma->ov_mutex);
+
+	printk(KERN_INFO "[LCD][DEBUG] %s is ended.. \n", __func__);
 
 	return ret;
 }

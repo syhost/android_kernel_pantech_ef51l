@@ -886,7 +886,7 @@ static int mdp_histogram_disable(struct mdp_hist_mgmt *mgmt)
 	outp32(MDP_INTR_CLEAR, mgmt->intr);
 	mdp_intr_mask &= ~mgmt->intr;
 	outp32(MDP_INTR_ENABLE, mdp_intr_mask);
-	mdp_disable_irq(mgmt->irq_term);
+	mdp_disable_irq_nosync(mgmt->irq_term);
 	spin_unlock_irqrestore(&mdp_spin_lock, flag);
 
 	if (mdp_rev >= MDP_REV_42)
@@ -1469,7 +1469,7 @@ void mdp_enable_irq(uint32 term)
 
 	spin_lock_irqsave(&mdp_lock, irq_flags);
 	if (mdp_irq_mask & term) {
-		printk(KERN_ERR "%s: MDP IRQ term-0x%x is already set, mask=%x irq=%d\n",
+		printk(KERN_ERR "[LCD][DEBUG] %s: MDP IRQ term-0x%x is already set, mask=%x irq=%d\n",
 				__func__, term, mdp_irq_mask, mdp_irq_enabled);
 	} else {
 		mdp_irq_mask |= term;
@@ -1490,7 +1490,7 @@ void mdp_disable_irq(uint32 term)
 
 	spin_lock_irqsave(&mdp_lock, irq_flags);
 	if (!(mdp_irq_mask & term)) {
-		printk(KERN_ERR "%s: MDP IRQ term-0x%x is NOT set, mask=%x irq=%d\n",
+		printk(KERN_ERR "[LCD][DEBUG] %s: MDP IRQ term-0x%x is NOT set, mask=%x irq=%d\n",
 				__func__, term, mdp_irq_mask, mdp_irq_enabled);
 	} else {
 		mdp_irq_mask &= ~term;
@@ -1506,7 +1506,7 @@ void mdp_disable_irq_nosync(uint32 term)
 {
 	spin_lock(&mdp_lock);
 	if (!(mdp_irq_mask & term)) {
-		printk(KERN_ERR "%s: MDP IRQ term-0x%x is NOT set, mask=%x irq=%d\n",
+		printk(KERN_ERR "[LCD][DEBUG] %s: MDP IRQ term-0x%x is NOT set, mask=%x irq=%d\n",
 				__func__, term, mdp_irq_mask, mdp_irq_enabled);
 	} else {
 		mdp_irq_mask &= ~term;
@@ -2353,7 +2353,7 @@ int mdp_bus_scale_update_request(uint32_t index)
 {
 	if (!mdp_pdata && (!mdp_pdata->mdp_bus_scale_table
 	     || index > (mdp_pdata->mdp_bus_scale_table->num_usecases - 1))) {
-		printk(KERN_ERR "%s invalid table or index\n", __func__);
+		printk(KERN_ERR "[LCD][DEBUG] %s invalid table or index\n", __func__);
 		return -EINVAL;
 	}
 	if (mdp_bus_scale_handle < 1) {
@@ -2406,7 +2406,7 @@ static int mdp_irq_clk_setup(struct platform_device *pdev,
 	ret = request_irq(mdp_irq, mdp_isr, IRQF_DISABLED, "MDP", 0);
 #endif
 	if (ret) {
-		printk(KERN_ERR "mdp request_irq() failed!\n");
+		printk(KERN_ERR "[LCD][DEBUG] mdp request_irq() failed!\n");
 		return ret;
 	}
 	disable_irq(mdp_irq);
@@ -2450,7 +2450,7 @@ static int mdp_irq_clk_setup(struct platform_device *pdev,
 	mdp_clk = clk_get(&pdev->dev, "core_clk");
 	if (IS_ERR(mdp_clk)) {
 		ret = PTR_ERR(mdp_clk);
-		printk(KERN_ERR "can't get mdp_clk error:%d!\n", ret);
+		printk(KERN_ERR "[LCD][DEBUG] can't get mdp_clk error:%d!\n", ret);
 		free_irq(mdp_irq, 0);
 		return ret;
 	}
@@ -2508,85 +2508,6 @@ static int mdp_irq_clk_setup(struct platform_device *pdev,
 	}
 	return 0;
 }
-
-#ifdef CONFIG_F_SKYDISP_QCBUGFIX_CONTINUOUS_SPLASH_SCREEN_BUFFER_ALLOC_FOR_1080P
-static void free_boot_logo_copy_buffer(void)
-{
-	pr_debug("%s++\n", __func__);
-
-	if (logo_buffer.data) {
-		logo_buffer.used = 0;
-		ion_unmap_kernel(logo_buffer.client, logo_buffer.handle);
-		ion_free(logo_buffer.client, logo_buffer.handle);
-		ion_client_destroy(logo_buffer.client);
-		pr_debug("%s:data[%p]phys[%p][%p], client[%p] handle[%p]\n",
-			__func__,
-			(void *)logo_buffer.data,
-			(void *)logo_buffer.phys,
-			(void *)&logo_buffer.phys,
-			(void *)logo_buffer.client,
-			(void *)logo_buffer.handle);
-	}
-
-		logo_buffer.data = NULL;
-		logo_buffer.phys = 0;
-	pr_debug("%s--\n", __func__);
-	return;
-}
-
-
-static int alloc_boot_logo_copy_buffer(unsigned int bufsz)
-{
-	int rc = 0;
-	int len = 0;
-
-	pr_debug("alloc_boot_logo_copy_buffer++\n");
-	logo_buffer.client =
-		 msm_ion_client_create(UINT_MAX, "boot_logo_copy_client");
-	if (IS_ERR_OR_NULL((void *)logo_buffer.client)) {
-		pr_err("%s: ION create client for boot_logo_copy failed\n",
-			 __func__);
-		goto fail;
-	}
-	logo_buffer.handle = ion_alloc(logo_buffer.client, bufsz * 1, SZ_4K,
-				  ION_HEAP(ION_QSECOM_HEAP_ID));
-	if (IS_ERR_OR_NULL((void *) logo_buffer.handle)) {
-		pr_err("%s: ION memory allocation for boot_logo_copy failed\n",
-			__func__);
-		goto fail;
-	}
-
-	rc = ion_phys(logo_buffer.client, logo_buffer.handle,
-		  (ion_phys_addr_t *)&logo_buffer.phys, (size_t *)&len);
-	if (rc) {
-		pr_err("%s: ION Get Phys for boot_logo_copy failed, rc = %d\n",
-			__func__, rc);
-		goto fail;
-	}
-
-	logo_buffer.data = ion_map_kernel(logo_buffer.client,
-				 logo_buffer.handle, 0);
-	if (IS_ERR_OR_NULL((void *) logo_buffer.data)) {
-		pr_err("%s: ION memory mapping for boot_logo_copy failed\n",
-				 __func__);
-		goto fail;
-	}
-	memset((void *)logo_buffer.data, 0, (bufsz * 1));
-	if (!logo_buffer.data) {
-		pr_err("%s:invalid vaddr, iomap failed\n", __func__);
-		goto fail;
-	}
-
-	logo_buffer.used = 1;
-
-	pr_debug("alloc_boot_logo_copy_buffer--\n");
-
-	return 0;
-fail:
-	free_boot_logo_copy_buffer();
-	return -EINVAL;
-}
-#endif
 
 static int mdp_probe(struct platform_device *pdev)
 {
@@ -2656,13 +2577,7 @@ static int mdp_probe(struct platform_device *pdev)
 #ifdef CONFIG_FB_MSM_OVERLAY
 		mdp_hw_cursor_init();
 #endif
-
-#ifdef CONFIG_F_SKYDISP_QCBUGFIX_CONTINUOUS_SPLASH_SCREEN
-		if (!(mdp_pdata->cont_splash_enabled))
-			mdp_clk_ctrl(0);
-#else
 		mdp_clk_ctrl(0);
-#endif
 
 		mdp_resource_initialized = 1;
 		return 0;
@@ -2715,12 +2630,13 @@ static int mdp_probe(struct platform_device *pdev)
 	if (platform_device_add_data
 	    (msm_fb_dev, pdev->dev.platform_data,
 	     sizeof(struct msm_fb_panel_data))) {
-		printk(KERN_ERR "mdp_probe: platform_device_add_data failed!\n");
+		printk(KERN_ERR "[LCD][DEBUG] mdp_probe: platform_device_add_data failed!\n");
 		rc = -ENOMEM;
 		goto mdp_probe_err;
 	}
 
 	if (mdp_pdata) {
+#if 0 //FIXME block to build error
 		if (mdp_pdata->cont_splash_enabled &&
 				 mfd->panel_info.pdest == DISPLAY_1) {
 			char *cp;
@@ -2740,26 +2656,10 @@ static int mdp_probe(struct platform_device *pdev)
 			mdp_pdata->splash_screen_addr =
 				inpdw(MDP_BASE + 0x90008);
 
-#ifdef CONFIG_F_SKYDISP_QCBUGFIX_CONTINUOUS_SPLASH_SCREEN_BUFFER_ALLOC_FOR_1080P
-				if (alloc_boot_logo_copy_buffer
-						(mdp_pdata->splash_screen_size))
-					pr_err("BUFFER ALLOC FAILED for SPLASH\n");
-				else
-					pr_debug("BUFFER ALLOC Sucessfully done for SPLASH\n");
-
-				if (logo_buffer.used == 1) {
-					mfd->copy_splash_phys =
-							 logo_buffer.phys;
-					mfd->copy_splash_buf =
-							logo_buffer.data;
-				}
-
-#else
 			mfd->copy_splash_buf = dma_alloc_coherent(NULL,
 					mdp_pdata->splash_screen_size,
 					(dma_addr_t *) &(mfd->copy_splash_phys),
 					GFP_KERNEL);
-#endif
 
 			if (!mfd->copy_splash_buf) {
 				pr_err("DMA ALLOC FAILED for SPLASH\n");
@@ -2778,6 +2678,7 @@ static int mdp_probe(struct platform_device *pdev)
 			MDP_OUTP(MDP_BASE + 0x90008,
 					mfd->copy_splash_phys);
 		}
+#endif
 
 		mfd->cont_splash_done = (1 - mdp_pdata->cont_splash_enabled);
 	}
@@ -2895,7 +2796,7 @@ static int mdp_probe(struct platform_device *pdev)
 		if (mfd->panel_info.pdest == DISPLAY_1)
 			mfd->dma = &dma2_data;
 		else {
-			printk(KERN_ERR "Invalid Selection of destination panel\n");
+			printk(KERN_ERR "[LCD][DEBUG] Invalid Selection of destination panel\n");
 			rc = -ENODEV;
 			mdp_clk_ctrl(0);
 			goto mdp_probe_err;
@@ -2936,7 +2837,7 @@ static int mdp_probe(struct platform_device *pdev)
 		if (mfd->panel_info.pdest == DISPLAY_1)
 			mfd->dma = &dma2_data;
 		else {
-			printk(KERN_ERR "Invalid Selection of destination panel\n");
+			printk(KERN_ERR "[LCD][DEBUG] Invalid Selection of destination panel\n");
 			rc = -ENODEV;
 			mdp_clk_ctrl(0);
 			goto mdp_probe_err;
@@ -3042,6 +2943,7 @@ static int mdp_probe(struct platform_device *pdev)
 				mdp_clk_ctrl(0);
 				return -ENODEV;
 			}
+			mdp4_wfd_init(0);
 			pdata->on = mdp4_overlay_writeback_on;
 			pdata->off = mdp4_overlay_writeback_off;
 			mfd->dma_fnc = mdp4_writeback_overlay;
@@ -3051,7 +2953,7 @@ static int mdp_probe(struct platform_device *pdev)
 		break;
 #endif
 	default:
-		printk(KERN_ERR "mdp_probe: unknown device type!\n");
+		printk(KERN_ERR "[LCD][DEBUG] mdp_probe: unknown device type!\n");
 		rc = -ENODEV;
 		mdp_clk_ctrl(0);
 		goto mdp_probe_err;
@@ -3077,7 +2979,7 @@ static int mdp_probe(struct platform_device *pdev)
 			msm_bus_scale_register_client(
 					mdp_pdata->mdp_bus_scale_table);
 		if (!mdp_bus_scale_handle) {
-			printk(KERN_ERR "%s not able to get bus scale\n",
+			printk(KERN_ERR "[LCD][DEBUG] %s not able to get bus scale\n",
 				__func__);
 			return -ENOMEM;
 		}
@@ -3183,21 +3085,6 @@ void mdp_footswitch_ctrl(boolean on)
 	mutex_unlock(&mdp_suspend_mutex);
 }
 
-void mdp_free_splash_buffer(struct msm_fb_data_type *mfd)
-{
-	if (mfd->copy_splash_buf) {
-#ifdef CONFIG_F_SKYDISP_QCBUGFIX_CONTINUOUS_SPLASH_SCREEN_BUFFER_ALLOC_FOR_1080P
-		free_boot_logo_copy_buffer();
-#else
-	    dma_free_coherent(NULL, mdp_pdata->splash_screen_size,
-			mfd->copy_splash_buf,
-			(dma_addr_t) mfd->copy_splash_phys);
-#endif
-
-		mfd->copy_splash_buf = NULL;
-	}
-}
-
 #ifdef CONFIG_PM
 static void mdp_suspend_sub(void)
 {
@@ -3226,7 +3113,7 @@ static int mdp_suspend(struct platform_device *pdev, pm_message_t state)
 	if (pdev->id == 0) {
 		mdp_suspend_sub();
 		if (mdp_current_clk_on) {
-			printk(KERN_WARNING"MDP suspend failed\n");
+			printk(KERN_WARNING "[LCD][DEBUG] MDP suspend failed\n");
 			return -EBUSY;
 		}
 	}
@@ -3296,7 +3183,7 @@ static int __init mdp_driver_init(void)
 
 	ret = mdp_register_driver();
 	if (ret) {
-		printk(KERN_ERR "mdp_register_driver() failed!\n");
+		printk(KERN_ERR "[LCD][DEBUG] mdp_register_driver() failed!\n");
 		return ret;
 	}
 

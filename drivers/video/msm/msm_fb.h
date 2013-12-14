@@ -117,7 +117,6 @@ struct disp_info_type_suspend {
 	boolean op_enable;
 	boolean sw_refreshing_enable;
 	boolean panel_power_on;
-	boolean op_suspend;
 };
 
 struct msmfb_writeback_data_list {
@@ -254,12 +253,6 @@ struct msm_fb_data_type {
 	u32 writeback_state;
 	bool writeback_active_cnt;
 	int cont_splash_done;
-	void *copy_splash_buf;
-#ifdef CONFIG_F_SKYDISP_QCBUGFIX_CONTINUOUS_SPLASH_SCREEN_BUFFER_ALLOC_FOR_1080P
-	dma_addr_t copy_splash_phys;
-#else
-	unsigned char *copy_splash_phys;
-#endif
 	void *cpu_pm_hdl;
 	int vsync_sysfs_created;
 	u32 acq_fen_cnt;

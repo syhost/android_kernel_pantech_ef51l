@@ -74,7 +74,9 @@ static int mipi_dsi_off(struct platform_device *pdev)
 	mfd = platform_get_drvdata(pdev);
 	pinfo = &mfd->panel_info;
 
-	if (mdp_rev >= MDP_REV_41)
+	printk(KERN_INFO"%s is started.. \n", __func__);
+
+	if (mdp_rev >= MDP_REV_41 && mfd->panel_info.type == MIPI_CMD_PANEL)
 		mutex_lock(&mfd->dma->ov_mutex);
 	else
 		down(&mfd->dma->mutex);
@@ -132,13 +134,14 @@ static int mipi_dsi_off(struct platform_device *pdev)
 	if (mipi_dsi_pdata && mipi_dsi_pdata->dsi_power_save)
 		mipi_dsi_pdata->dsi_power_save(0);
 
-	if (mdp_rev >= MDP_REV_41)
+	if (mdp_rev >= MDP_REV_41 && mfd->panel_info.type == MIPI_CMD_PANEL)
 		mutex_unlock(&mfd->dma->ov_mutex);
 	else
 		up(&mfd->dma->mutex);
 
 	pr_debug("End of %s ....:\n", __func__);
 
+	printk(KERN_INFO"%s is ended.. \n", __func__);
 	return ret;
 }
 
@@ -176,6 +179,7 @@ static int mipi_dsi_on(struct platform_device *pdev)
 	var = &fbi->var;
 	pinfo = &mfd->panel_info;
 	esc_byte_ratio = pinfo->mipi.esc_byte_ratio;
+	printk(KERN_INFO"%s is started.. \n", __func__);
 
 	if (mipi_dsi_pdata && mipi_dsi_pdata->dsi_power_save)
 		mipi_dsi_pdata->dsi_power_save(1);
@@ -351,6 +355,7 @@ static int mipi_dsi_on(struct platform_device *pdev)
 		up(&mfd->dma->mutex);
 
 	pr_debug("End of %s....:\n", __func__);
+	printk(KERN_INFO"%s is ended.. \n", __func__);
 
 	return ret;
 }
